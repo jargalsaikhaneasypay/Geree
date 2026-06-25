@@ -912,17 +912,19 @@ def autocomplete():
     return jsonify([r[field] for r in rows if r[field]])
 
 
-if not os.environ.get('DATABASE_URL'):
-    raise RuntimeError('DATABASE_URL environment variable is not set!')
+_db_ready = False
 
-try:
-    init_db()
-except Exception as e:
-    import sys
-    print(f'\n!!! DATABASE ERROR: {e}\n', file=sys.stderr, flush=True)
-    raise
+@app.before_request
+def ensure_db():
+    global _db_ready
+    if not _db_ready:
+        if not os.environ.get('DATABASE_URL'):
+            raise RuntimeError('DATABASE_URL environment variable is not set in Render!')
+        init_db()
+        _db_ready = True
 
 if __name__ == '__main__':
+    init_db()
     import sys, io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     print('=' * 55)

@@ -223,6 +223,14 @@ def add():
         overdue_days  = calculate_overdue(expected_date, received_date)
         time_category = get_time_category(overdue_days)
 
+        if terminal_number:
+            cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
+            if cur.fetchone():
+                flash('Терминалын дугаар давхацсан!', 'error')
+                cur.close()
+                conn.close()
+                return redirect(url_for('add'))
+
         cur.execute('''
             INSERT INTO contracts
             (dd, merchant_name, pos_serial, merchant_number, terminal_number,
@@ -300,6 +308,17 @@ def edit(cid):
 
         overdue_days  = calculate_overdue(expected_date, received_date)
         time_category = get_time_category(overdue_days)
+
+        if terminal_number:
+            cur.execute('SELECT id FROM contracts WHERE terminal_number = %s AND id != %s', (terminal_number, cid))
+            if cur.fetchone():
+                flash('Терминалын дугаар давхацсан!', 'error')
+                cur.close()
+                conn.close()
+                return render_template('edit.html', c=contract,
+                                       departments=DEPARTMENTS,
+                                       statuses=STATUSES,
+                                       inspection_results=INSPECTION_RESULTS)
 
         cur.execute('''
             UPDATE contracts SET
@@ -478,6 +497,13 @@ def import_excel():
                 if not merchant_name:
                     skipped += 1
                     continue
+
+                if terminal_number:
+                    cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
+                    if cur.fetchone():
+                        err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
+                        skipped += 1
+                        continue
 
                 cur.execute('''
                     INSERT INTO contracts
@@ -913,7 +939,6 @@ def autocomplete():
 
 
 _db_ready = False
-
 @app.before_request
 def ensure_db():
     global _db_ready

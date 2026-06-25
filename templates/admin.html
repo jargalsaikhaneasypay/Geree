@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% block title %}Админ – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Админ хэсэг</h1>{% endblock %}
+
+{% block content %}
+
+<!-- Stats row -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ total }}</span>
+      <span class="stat-label">Нийт бүртгэл</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ on_time }}</span>
+      <span class="stat-label">Хугацаандаа</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-red">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ overdue }}</span>
+      <span class="stat-label">Хугацаа хэтэрсэн</span>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="charts-row">
+  <!-- By department -->
+  <div class="card chart-card">
+    <h3 class="chart-title">Хэлтсээр</h3>
+    {% if by_dept %}
+      {% set max_val = by_dept.values() | max %}
+      <div class="bar-chart">
+        {% for dept, count in by_dept.items() %}
+        <div class="bar-item">
+          <span class="bar-label">{{ dept }}</span>
+          <div class="bar-track">
+            <div class="bar-fill bar-fill-blue" style="width: {{ (count / max_val * 100)|int }}%"></div>
+          </div>
+          <span class="bar-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty-chart">Мэдээлэл байхгүй</p>
+    {% endif %}
+  </div>
+
+  <!-- By inspection result -->
+  <div class="card chart-card">
+    <h3 class="chart-title">Хяналтын үр дүнгээр</h3>
+    {% if by_result %}
+      {% set max_val2 = by_result.values() | max %}
+      <div class="bar-chart">
+        {% for result, count in by_result.items() %}
+        <div class="bar-item">
+          <span class="bar-label">{{ result }}</span>
+          <div class="bar-track">
+            <div class="bar-fill bar-fill-teal" style="width: {{ (count / max_val2 * 100)|int }}%"></div>
+          </div>
+          <span class="bar-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="empty-chart">Мэдээлэл байхгүй</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Export section -->
+<div class="card export-card">
+  <div class="export-info">
+    <div class="export-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    </div>
+    <div>
+      <h3 class="export-title">Excel татаж авах</h3>
+      <p class="export-sub">Бүх бүртгэлийг форматтай Excel файлаар татаж авна</p>
+    </div>
+  </div>
+  <a href="{{ url_for('export') }}" class="btn btn-success btn-lg">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Excel татах ({{ total }} бүртгэл)
+  </a>
+</div>
+
+<!-- Full table -->
+<div class="card table-card">
+  <div class="card-header">
+    <h3 class="card-title">Бүх бүртгэл</h3>
+  </div>
+  {% if contracts %}
+  <div class="table-scroll">
+    <table class="data-table data-table-sm">
+      <thead>
+        <tr>
+          <th>Д/д</th>
+          <th>Мерчантын нэр</th>
+          <th>Посын сериал</th>
+          <th>Хэлтэс</th>
+          <th>Ирэх ёстой огноо</th>
+          <th>Хүлээн авсан огноо</th>
+          <th>Хэтэрсэн хоног</th>
+          <th>Ангилал</th>
+          <th>Хяналтын үр дүн</th>
+          <th>Буцаасан огноо</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contracts %}
+        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% else %}row-ontime{% endif %}">
+          <td class="text-center fw-600">{{ c.dd }}</td>
+          <td class="fw-500">{{ c.merchant_name or '—' }}</td>
+          <td class="mono">{{ c.pos_serial or '—' }}</td>
+          <td>
+            {% if c.department %}<span class="badge badge-dept">{{ c.department }}</span>{% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.expected_date or '—' }}</td>
+          <td class="text-center">{{ c.received_date or '—' }}</td>
+          <td class="text-center fw-600 {% if c.overdue_days and c.overdue_days > 0 %}text-danger{% elif c.overdue_days is not none %}text-success{% endif %}">
+            {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% else %}badge-danger{% endif %}">
+              {{ c.time_category }}
+            </span>
+          </td>
+          <td>
+            {% if c.first_inspection %}<span class="badge badge-inspection">{{ c.first_inspection }}</span>{% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.return_date or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <p>Бүртгэл байхгүй байна</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+{% block title %}Дашбоард – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Дашбоард</h1>{% endblock %}
+
+{% block content %}
+
+<!-- Filter bar -->
+<div class="card db-filter-bar">
+  <form method="GET" id="dbForm">
+
+    <!-- Row 1: Period tabs -->
+    <div class="db-filter-row">
+      <label class="db-filter-label">Хугацааны төрөл</label>
+      <div class="db-period-tabs">
+        <button type="button" onclick="setPeriod('day')"
+                class="db-tab {% if period=='day' %}db-tab-active{% endif %}">Өнөөдөр</button>
+        <button type="button" onclick="setPeriod('month')"
+                class="db-tab {% if period=='month' %}db-tab-active{% endif %}">Сар</button>
+        <button type="button" onclick="setPeriod('quarter')"
+                class="db-tab {% if period=='quarter' %}db-tab-active{% endif %}">Улирал</button>
+        <button type="button" onclick="setPeriod('halfyear')"
+                class="db-tab {% if period=='halfyear' %}db-tab-active{% endif %}">Хагас жил</button>
+        <button type="button" onclick="setPeriod('year')"
+                class="db-tab {% if period=='year' %}db-tab-active{% endif %}">Жил</button>
+        <button type="button" onclick="setPeriod('custom')"
+                class="db-tab {% if period=='custom' %}db-tab-active{% endif %}">Динамик</button>
+      </div>
+      <input type="hidden" name="period" id="periodInput" value="{{ period }}" />
+    </div>
+
+    <!-- Row 2: Period detail selectors -->
+    <div class="db-filter-row db-selectors-row">
+
+      <!-- Month selector -->
+      <div class="db-selector-group" id="grp_month" style="display:{% if period=='month' %}flex{% else %}none{% endif %}">
+        <label class="db-filter-label">Сар сонгох</label>
+        <div class="db-sel-inline">
+          <select name="sel_month_year" id="sel_month_year" class="select-filter" style="width:90px">
+            {% for y in years %}
+              <option value="{{ y }}" {% if sel_month and sel_month.startswith(y|string) %}selected{% elif not sel_month and y == today[:4]|int %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <select name="sel_month_m" id="sel_month_m" class="select-filter" style="width:110px">
+            {% for i in range(1,13) %}
+              {% set mv = '%02d'|format(i) %}
+              <option value="{{ mv }}"
+                {% if sel_month and sel_month.endswith('-'+mv) %}selected
+                {% elif not sel_month and today[5:7] == mv %}selected{% endif %}>
+                {{ months_mn[i-1] }}
+              </option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="sel_month" id="sel_month_hidden" value="{{ sel_month }}" />
+        </div>
+      </div>
+
+      <!-- Quarter selector -->
+      <div class="db-selector-group" id="grp_quarter" style="display:{% if period=='quarter' %}flex{% else %}none{% endif %}">
+        <label class="db-filter-label">Улирал сонгох</label>
+        <div class="db-sel-inline">
+          <select name="sel_q_year" id="sel_q_year" class="select-filter" style="width:90px">
+            {% for y in years %}
+              <option value="{{ y }}" {% if sel_q and sel_q.startswith(y|string) %}selected{% elif not sel_q and y == today[:4]|int %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <select name="sel_q_q" id="sel_q_q" class="select-filter" style="width:120px">
+            {% for qi in [1,2,3,4] %}
+              <option value="Q{{ qi }}"
+                {% if sel_q and sel_q.endswith('-Q'+qi|string) %}selected
+                {% elif not sel_q and ((today[5:7]|int - 1)//3 + 1) == qi %}selected{% endif %}>
+                {{ qi }}-р улирал
+              </option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="sel_q" id="sel_q_hidden" value="{{ sel_q }}" />
+        </div>
+      </div>
+
+      <!-- Half-year selector -->
+      <div class="db-selector-group" id="grp_halfyear" style="display:{% if period=='halfyear' %}flex{% else %}none{% endif %}">
+        <label class="db-filter-label">Хагас жил сонгох</label>
+        <div class="db-sel-inline">
+          <select name="sel_h_year" id="sel_h_year" class="select-filter" style="width:90px">
+            {% for y in years %}
+              <option value="{{ y }}" {% if sel_half and sel_half.startswith(y|string) %}selected{% elif not sel_half and y == today[:4]|int %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <select name="sel_h_h" id="sel_h_h" class="select-filter" style="width:130px">
+            <option value="H1" {% if sel_half and sel_half.endswith('-H1') %}selected{% elif not sel_half and today[5:7]|int <= 6 %}selected{% endif %}>Эхний хагас жил</option>
+            <option value="H2" {% if sel_half and sel_half.endswith('-H2') %}selected{% elif not sel_half and today[5:7]|int > 6  %}selected{% endif %}>Хоёрдугаар хагас жил</option>
+          </select>
+          <input type="hidden" name="sel_half" id="sel_half_hidden" value="{{ sel_half }}" />
+        </div>
+      </div>
+
+      <!-- Year selector -->
+      <div class="db-selector-group" id="grp_year" style="display:{% if period=='year' %}flex{% else %}none{% endif %}">
+        <label class="db-filter-label">Жил сонгох</label>
+        <div class="db-sel-inline">
+          <select name="sel_year" id="sel_year_input" class="select-filter" style="width:100px">
+            {% for y in years %}
+              <option value="{{ y }}" {% if sel_year and sel_year|int == y %}selected{% elif not sel_year and y == today[:4]|int %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom date range -->
+      <div class="db-selector-group" id="grp_custom" style="display:{% if period=='custom' %}flex{% else %}none{% endif %}">
+        <label class="db-filter-label">Динамик огноо</label>
+        <div class="db-sel-inline">
+          <input type="date" name="date_from" value="{{ date_from or d_from }}" class="form-input" style="width:148px" />
+          <span style="color:var(--text-muted);font-size:13px;padding:0 4px">—</span>
+          <input type="date" name="date_to"   value="{{ date_to or d_to }}"     class="form-input" style="width:148px" />
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 3: Dept + Employee + Submit -->
+    <div class="db-filter-row">
+      <label class="db-filter-label">Шүүлт</label>
+      <div class="db-sel-inline" style="flex-wrap:wrap;gap:8px">
+        <select name="dept" class="select-filter">
+          <option value="">Бүх хэлтэс</option>
+          {% for d in departments %}
+            <option value="{{ d }}" {% if dept==d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="employee" class="select-filter">
+          <option value="">Бүх ажилтан</option>
+          {% for emp in all_employees %}
+            <option value="{{ emp }}" {% if employee==emp %}selected{% endif %}>{{ emp }}</option>
+          {% endfor %}
+        </select>
+
+        <button type="submit" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:6px">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          Харах
+        </button>
+        {% if dept or employee or period != 'month' %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Цэвэрлэх</a>
+        {% endif %}
+      </div>
+    </div>
+
+  </form>
+
+  <div class="db-period-label" style="margin-top:8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-muted)">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <span>{{ d_from }} — {{ d_to }}{% if dept %} · {{ dept }}{% endif %}{% if employee %} · {{ employee }}{% endif %}</span>
+  </div>
+</div>
+
+<script>
+function setPeriod(p) {
+  document.getElementById('periodInput').value = p;
+  // show/hide selector groups
+  ['month','quarter','halfyear','year','custom'].forEach(function(g) {
+    var el = document.getElementById('grp_' + g);
+    if (el) el.style.display = (g === p) ? 'flex' : 'none';
+  });
+  // update tab styles
+  document.querySelectorAll('.db-tab').forEach(function(t) {
+    t.classList.remove('db-tab-active');
+  });
+  event.target.classList.add('db-tab-active');
+}
+
+// Combine year+month/quarter/half selects into hidden inputs before submit
+document.getElementById('dbForm').addEventListener('submit', function() {
+  var p = document.getElementById('periodInput').value;
+  if (p === 'month') {
+    var y = document.getElementById('sel_month_year').value;
+    var m = document.getElementById('sel_month_m').value;
+    document.getElementById('sel_month_hidden').value = y + '-' + m;
+  } else if (p === 'quarter') {
+    var y = document.getElementById('sel_q_year').value;
+    var q = document.getElementById('sel_q_q').value;
+    document.getElementById('sel_q_hidden').value = y + '-' + q;
+  } else if (p === 'halfyear') {
+    var y = document.getElementById('sel_h_year').value;
+    var h = document.getElementById('sel_h_h').value;
+    document.getElementById('sel_half_hidden').value = y + '-' + h;
+  }
+  // year: sel_year select already has name="sel_year", no extra action needed
+});
+
+</script>
+
+<!-- KPI row -->
+<div class="db-kpi-row">
+
+  <div class="db-kpi-card db-kpi-primary">
+    <div class="db-kpi-label">Нийт гэрээ</div>
+    <div class="db-kpi-value">{{ total }}</div>
+    <div class="db-kpi-sub">бүртгэл</div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-green">
+    <div class="db-kpi-label">Хугацаандаа</div>
+    <div class="db-kpi-value">{{ on_time }}</div>
+    <div class="db-kpi-sub">{{ on_time_pct }}%</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-green" style="width:{{ on_time_pct }}%"></div>
+    </div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-red">
+    <div class="db-kpi-label">Хугацаа хэтэрсэн</div>
+    <div class="db-kpi-value">{{ overdue }}</div>
+    <div class="db-kpi-sub">{{ overdue_pct }}%</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-red" style="width:{{ overdue_pct }}%"></div>
+    </div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-orange">
+    <div class="db-kpi-label">Дундаж хэтэрсэн хоног</div>
+    <div class="db-kpi-value">{{ avg_overdue }}</div>
+    <div class="db-kpi-sub">хоног  (дээд: {{ max_overdue }})</div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-blue">
+    <div class="db-kpi-label">Эхний хяналтаар бүрэн</div>
+    <div class="db-kpi-value">{{ complete }}</div>
+    <div class="db-kpi-sub">{{ complete_pct }}%</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-blue" style="width:{{ complete_pct }}%"></div>
+    </div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-purple">
+    <div class="db-kpi-label">Буцаасан гэрээ</div>
+    <div class="db-kpi-value">{{ returned }}</div>
+    <div class="db-kpi-sub">{{ returned_pct }}%</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-purple" style="width:{{ returned_pct }}%"></div>
+    </div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-amber">
+    <div class="db-kpi-label">Ирээгүй гэрээ</div>
+    <div class="db-kpi-value">{{ not_received }}</div>
+    {% set nr_pct = (not_received / total * 100) | round(1) if total else 0 %}
+    <div class="db-kpi-sub">{{ nr_pct }}% · хүлээн аваагүй</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-amber" style="width:{{ nr_pct }}%"></div>
+    </div>
+    {% if nr_avg_overdue > 0 %}
+    <div class="db-kpi-extra">
+      <span class="db-kpi-extra-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Дундаж хэтэрлт: <strong>{{ nr_avg_overdue }} хоног</strong>
+      </span>
+      <span class="db-kpi-extra-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Дээд хэтэрлт: <strong>{{ nr_max_overdue }} хоног</strong>
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Charts row -->
+<div class="db-charts-row">
+
+  <!-- Donut: On time vs Overdue -->
+  <div class="card db-chart-card">
+    <h3 class="db-chart-title">Хугацааны харьцаа</h3>
+    {% if total > 0 %}
+    <div class="db-donut-wrap">
+      <svg class="db-donut" viewBox="0 0 120 120">
+        {% set r = 46 %}
+        {% set circ = 2 * 3.14159 * r %}
+        {% set on_dash = (on_time_pct / 100 * circ) | round(2) %}
+        {% set ov_dash = (overdue_pct / 100 * circ) | round(2) %}
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#FDECEA" stroke-width="14"/>
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#D5F5E3" stroke-width="14"
+                stroke-dasharray="{{ on_dash }} {{ circ }}"
+                stroke-dashoffset="{{ circ * 0.25 }}"
+                transform="rotate(-90 60 60)"
+                style="transition:stroke-dasharray .6s ease"/>
+        <text x="60" y="56" text-anchor="middle" font-size="18" font-weight="700" fill="#1A2332">{{ total }}</text>
+        <text x="60" y="70" text-anchor="middle" font-size="9"  fill="#8896A7">нийт</text>
+      </svg>
+      <div class="db-donut-legend">
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#1A7F4F"></span>
+          <span>Хугацаандаа</span>
+          <strong>{{ on_time }} ({{ on_time_pct }}%)</strong>
+        </div>
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#C0392B"></span>
+          <span>Хугацаа хэтэрсэн</span>
+          <strong>{{ overdue }} ({{ overdue_pct }}%)</strong>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-chart">Мэдээлэл байхгүй</div>
+    {% endif %}
+  </div>
+
+  <!-- Donut: First inspection result -->
+  <div class="card db-chart-card">
+    <h3 class="db-chart-title">Эхний хяналтын үр дүн</h3>
+    {% if total > 0 %}
+    <div class="db-donut-wrap">
+      <svg class="db-donut" viewBox="0 0 120 120">
+        {% set r = 46 %}
+        {% set circ = 2 * 3.14159 * r %}
+        {% set cp = (complete_pct / 100 * circ) | round(2) %}
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#FDECEA" stroke-width="14"/>
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#D5F5E3" stroke-width="14"
+                stroke-dasharray="{{ cp }} {{ circ }}"
+                transform="rotate(-90 60 60)" />
+        <text x="60" y="56" text-anchor="middle" font-size="18" font-weight="700" fill="#1A2332">{{ complete_pct }}%</text>
+        <text x="60" y="70" text-anchor="middle" font-size="9"  fill="#8896A7">бүрэн</text>
+      </svg>
+      <div class="db-donut-legend">
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#1A7F4F"></span>
+          <span>Бүрэн</span>
+          <strong>{{ complete }}</strong>
+        </div>
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#E67E22"></span>
+          <span>Дутуу / Буруу</span>
+          <strong>{{ incomplete }}</strong>
+        </div>
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#8E44AD"></span>
+          <span>Буцаасан</span>
+          <strong>{{ returned }}</strong>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-chart">Мэдээлэл байхгүй</div>
+    {% endif %}
+  </div>
+
+  <!-- Bar: Monthly trend -->
+  <div class="card db-chart-card db-chart-wide">
+    <h3 class="db-chart-title">Сарын чиг хандлага (сүүлийн 6 сар)</h3>
+    {% if trend %}
+    <div class="db-trend-chart">
+      {% set max_t = trend | map(attribute='total') | max %}
+      {% for t in trend %}
+      <div class="db-trend-col">
+        <div class="db-trend-bars">
+          {% if max_t > 0 %}
+          <div class="db-trend-bar-wrap">
+            <div class="db-trend-bar db-trend-overdue"
+                 style="height:{{ (t.overdue / max_t * 120) | int }}px"
+                 title="Хугацаа хэтэрсэн: {{ t.overdue }}"></div>
+            <div class="db-trend-bar db-trend-ontime"
+                 style="height:{{ (t.on_time / max_t * 120) | int }}px"
+                 title="Хугацаандаа: {{ t.on_time }}"></div>
+          </div>
+          {% endif %}
+          <div class="db-trend-total">{{ t.total }}</div>
+        </div>
+        <div class="db-trend-label">{{ t.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="db-trend-legend">
+      <span><span class="db-legend-dot" style="background:#1A7F4F;display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px"></span>Хугацаандаа</span>
+      <span><span class="db-legend-dot" style="background:#C0392B;display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px"></span>Хугацаа хэтэрсэн</span>
+    </div>
+    {% else %}
+    <div class="empty-chart">Мэдээлэл байхгүй</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Bottom row: By dept + Inspection breakdown -->
+<div class="db-charts-row">
+
+  <!-- Dept breakdown table -->
+  <div class="card db-chart-card db-chart-wide">
+    <h3 class="db-chart-title">Хэлтсийн задаргаа</h3>
+    {% if dept_stats %}
+    <table class="data-table" style="font-size:13px">
+      <thead>
+        <tr>
+          <th>Хэлтэс</th>
+          <th class="text-center">Нийт</th>
+          <th class="text-center">Хугацаандаа</th>
+          <th class="text-center">Хугацаа хэтэрсэн</th>
+          <th class="text-center">Хэтэрсэн %</th>
+          <th class="text-center">Буцаасан</th>
+          <th>Харьцаа</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d, s in dept_stats.items() %}
+        {% set ov_p = (s.overdue / s.total * 100) | round(1) if s.total else 0 %}
+        <tr>
+          <td class="fw-500">{{ d }}</td>
+          <td class="text-center fw-600">{{ s.total }}</td>
+          <td class="text-center text-success fw-600">{{ s.on_time }}</td>
+          <td class="text-center text-danger fw-600">{{ s.overdue }}</td>
+          <td class="text-center">
+            <span class="badge {% if ov_p > 50 %}badge-danger{% elif ov_p > 0 %}badge-inspection{% else %}badge-success{% endif %}">
+              {{ ov_p }}%
+            </span>
+          </td>
+          <td class="text-center">{{ s.returned }}</td>
+          <td style="min-width:120px">
+            <div class="db-mini-bar-track">
+              <div class="db-mini-bar-on"  style="width:{{ (s.on_time / s.total * 100)|int if s.total else 0 }}%"></div>
+              <div class="db-mini-bar-ov"  style="width:{{ (s.overdue / s.total * 100)|int if s.total else 0 }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-chart">Мэдээлэл байхгүй</div>
+    {% endif %}
+  </div>
+
+  <!-- Inspection result breakdown bars -->
+  <div class="card db-chart-card">
+    <h3 class="db-chart-title">Хяналтын үр дүн</h3>
+    {% if insp_counts %}
+      {% set max_ic = insp_counts.values() | max %}
+      <div class="bar-chart">
+        {% for result, cnt in insp_counts.items() %}
+        {% set is_full = result in ['Бүрэн', 'Салбар дээр архивлагдсан/бүрэн'] %}
+        <div class="bar-item">
+          <span class="bar-label" style="width:210px;font-size:12px">{{ result }}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:{{ (cnt / max_ic * 100)|int }}%;background:{% if is_full %}#1A7F4F{% else %}#C0392B{% endif %}"></div>
+          </div>
+          <span class="bar-count">{{ cnt }}</span>
+        </div>
+        {% endfor %}
+        {% if inactive_count %}
+        <div class="bar-item" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <span class="bar-label" style="width:210px;font-size:12px;color:var(--warning);font-weight:600">Буцаагдсан гэрээ</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:{{ ([inactive_count, max_ic]|min / max_ic * 100)|int }}%;background:var(--warning)"></div>
+          </div>
+          <span class="bar-count" style="color:var(--warning);font-weight:700">{{ inactive_count }}</span>
+        </div>
+        {% endif %}
+      </div>
+    {% else %}
+    <div class="empty-chart">Мэдээлэл байхгүй</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+/* ── Filter bar ── */
+.db-filter-bar {
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.db-filter-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.db-filter-label {
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-muted); width: 120px; flex-shrink: 0;
+}
+.db-selectors-row { padding-left: 134px; }
+.db-sel-inline    { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.db-selector-group { display: flex; align-items: center; gap: 10px; }
+
+.db-period-tabs {
+  display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg);
+}
+.db-tab {
+  padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  background: none; border: none; border-right: 1px solid var(--border);
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.db-tab:last-child { border-right: none; }
+.db-tab:hover      { background: #E8EEF5; color: var(--primary); }
+.db-tab-active     { background: var(--primary) !important; color: #fff !important; font-weight: 700; }
+.db-period-label   { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+
+/* ── KPI row ── */
+.db-kpi-row {
+  display: flex; gap: 14px; flex-wrap: wrap;
+}
+.db-kpi-card {
+  flex: 1; min-width: 150px;
+  padding: 18px 20px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.db-kpi-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.db-kpi-value { font-size: 34px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.db-kpi-sub   { font-size: 12px; font-weight: 500; margin-bottom: 10px; }
+.db-kpi-bar-track { height: 5px; background: rgba(0,0,0,.08); border-radius: 10px; overflow: hidden; }
+.db-kpi-bar   { height: 100%; border-radius: 10px; transition: width .5s ease; }
+
+.db-kpi-primary { border-top: 3px solid var(--primary); }
+.db-kpi-primary .db-kpi-label { color: var(--accent); }
+.db-kpi-primary .db-kpi-value { color: var(--primary); }
+
+.db-kpi-green { border-top: 3px solid var(--success); }
+.db-kpi-green .db-kpi-label { color: var(--success); }
+.db-kpi-green .db-kpi-value { color: var(--success); }
+.db-kpi-bar-green { background: var(--success); }
+
+.db-kpi-red { border-top: 3px solid var(--danger); }
+.db-kpi-red .db-kpi-label { color: var(--danger); }
+.db-kpi-red .db-kpi-value { color: var(--danger); }
+.db-kpi-bar-red { background: var(--danger); }
+
+.db-kpi-orange { border-top: 3px solid #D4800A; }
+.db-kpi-orange .db-kpi-label { color: #D4800A; }
+.db-kpi-orange .db-kpi-value { color: #D4800A; }
+
+.db-kpi-blue { border-top: 3px solid var(--accent); }
+.db-kpi-blue .db-kpi-label { color: var(--accent); }
+.db-kpi-blue .db-kpi-value { color: var(--accent); }
+.db-kpi-bar-blue { background: var(--accent); }
+
+.db-kpi-purple { border-top: 3px solid #8E44AD; }
+.db-kpi-purple .db-kpi-label { color: #8E44AD; }
+.db-kpi-purple .db-kpi-value { color: #8E44AD; }
+.db-kpi-bar-purple { background: #8E44AD; }
+
+.db-kpi-amber { border-top: 3px solid #B7791F; }
+.db-kpi-amber .db-kpi-label { color: #B7791F; }
+.db-kpi-amber .db-kpi-value { color: #B7791F; }
+.db-kpi-bar-amber { background: #B7791F; }
+
+.db-kpi-extra {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px dashed #E2C97A;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.db-kpi-extra-row {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: #7A5A1A;
+}
+.db-kpi-extra-row strong { color: #B7791F; }
+
+/* ── Charts row ── */
+.db-charts-row { display: flex; gap: 18px; flex-wrap: wrap; }
+.db-chart-card { flex: 1; min-width: 280px; padding: 20px; }
+.db-chart-wide { flex: 2; min-width: 400px; }
+.db-chart-title { font-size: 13.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 18px; }
+
+/* Donut */
+.db-donut-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.db-donut      { width: 120px; height: 120px; flex-shrink: 0; }
+.db-donut-legend { display: flex; flex-direction: column; gap: 10px; }
+.db-legend-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.db-legend-item strong { margin-left: auto; color: var(--text-primary); font-size: 13px; }
+.db-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Trend chart */
+.db-trend-chart {
+  display: flex; align-items: flex-end; gap: 10px;
+  height: 160px; padding-bottom: 24px; border-bottom: 2px solid var(--border-light);
+  margin-bottom: 10px;
+}
+.db-trend-col  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.db-trend-bars { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 130px; width: 100%; }
+.db-trend-bar-wrap { display: flex; flex-direction: column; align-items: center; width: 28px; gap: 2px; }
+.db-trend-bar  { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .4s ease; }
+.db-trend-ontime  { background: var(--success); }
+.db-trend-overdue { background: var(--danger); }
+.db-trend-total { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.db-trend-label { font-size: 11px; color: var(--text-muted); text-align: center; }
+.db-trend-legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); }
+
+/* Mini stacked bar */
+.db-mini-bar-track {
+  height: 8px; border-radius: 4px; overflow: hidden;
+  background: var(--border-light); display: flex;
+}
+.db-mini-bar-on { background: var(--success); height: 100%; }
+.db-mini-bar-ov { background: var(--danger);  height: 100%; }
+</style>
+
+{% endblock %}

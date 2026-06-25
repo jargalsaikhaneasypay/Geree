@@ -1,0 +1,912 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+import sqlite3
+import os
+from datetime import datetime, date, timedelta
+import openpyxl
+from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, GradientFill
+from openpyxl.utils import get_column_letter
+from io import BytesIO
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'contract-registry-secret-2026')
+
+# -----------------------------------------------------------
+# Users
+# -----------------------------------------------------------
+USERS = {
+    'bolor-erdene@easypay.mn': generate_password_hash('Bolor2026!'),
+    'uyanga@easypay.mn':       generate_password_hash('Uyanga2026!'),
+    'myagmarsuren_lkh@easypay.mn': generate_password_hash('Myagmar2026!'),
+}
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+DATABASE = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'contracts.db'))
+
+DEPARTMENTS = ['Борлуулалт', 'ХҮА', 'Салбар', 'Хөдөө орон нутаг', 'Томилолт']
+STATUSES = ['Гэрээ', 'Зарагдсан', 'Нэр шилжүүлэг', 'Түрээс']
+INSPECTION_RESULTS = [
+    'Бүрэн',
+    'Бүрдэл дутуу',
+    'Салбар дээр архивлагдсан/бүрэн',
+    'Салбар дээр архивлагдсан/дутуу',
+    'Бүртгэл буруу',
+    'Бүртгэл буруу/дутуу'
+]
+
+# -----------------------------------------------------------
+# Database helpers
+# -----------------------------------------------------------
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS contracts (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            dd               INTEGER,
+            merchant_name    TEXT,
+            pos_serial       TEXT,
+            merchant_number  TEXT,
+            terminal_number  TEXT,
+            status           TEXT,
+            pos_issue_date   TEXT,
+            phone            TEXT,
+            merchant_type    TEXT,
+            issued_by        TEXT,
+            department       TEXT,
+            expected_date    TEXT,
+            received_date    TEXT,
+            overdue_days     INTEGER,
+            time_category    TEXT,
+            first_inspection TEXT,
+            description      TEXT,
+            return_date      TEXT,
+            last_inspection_date TEXT,
+            created_at       TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    # Migrate: add missing columns
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(contracts)").fetchall()]
+    for new_col in ['status', 'return_date_2', 'return_date_3', 'return_date_4', 'return_date_5',
+                     'is_inactive', 'inactive_reason']:
+        if new_col not in cols:
+            conn.execute(f"ALTER TABLE contracts ADD COLUMN {new_col} TEXT")
+    conn.commit()
+    conn.close()
+
+
+def calculate_overdue(expected_date, received_date):
+    """Returns (received - expected) in days, or None if dates are missing."""
+    if not expected_date or not received_date:
+        return None
+    try:
+        exp = datetime.strptime(expected_date, '%Y-%m-%d').date()
+        rec = datetime.strptime(received_date, '%Y-%m-%d').date()
+        return (rec - exp).days
+    except Exception:
+        return None
+
+
+def get_time_category(overdue_days):
+    if overdue_days is None:
+        return 'Хугацаа хэтэрсэн'
+    return 'Хугацаандаа' if overdue_days <= 0 else 'Хугацаа хэтэрсэн'
+
+
+def row_to_dict(row):
+    return dict(row) if row else None
+
+
+# -----------------------------------------------------------
+# Auth routes
+# -----------------------------------------------------------
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user' in session:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        email    = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        if email in USERS and check_password_hash(USERS[email], password):
+            session['user'] = email
+            next_url = request.args.get('next') or url_for('index')
+            return redirect('/' + next_url.lstrip('/'))
+        flash('И-мэйл эсвэл нууц үг буруу байна.', 'error')
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect(url_for('login'))
+
+
+# -----------------------------------------------------------
+# Routes – main list
+# -----------------------------------------------------------
+@app.route('/')
+def root():
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/list')
+@login_required
+def index():
+    conn = get_db()
+    search = request.args.get('search', '').strip()
+    dept   = request.args.get('dept', '').strip()
+    cat    = request.args.get('cat', '').strip()
+
+    query  = 'SELECT * FROM contracts WHERE 1=1'
+    params = []
+    if search:
+        query += ' AND (merchant_name LIKE ? OR pos_serial LIKE ? OR merchant_number LIKE ? OR terminal_number LIKE ?)'
+        like = f'%{search}%'
+        params.extend([like, like, like, like])
+    if dept:
+        query += ' AND department = ?'
+        params.append(dept)
+    if cat:
+        query += ' AND time_category = ?'
+        params.append(cat)
+
+    query += ' ORDER BY dd'
+    contracts = conn.execute(query, params).fetchall()
+
+    total    = conn.execute('SELECT COUNT(*) FROM contracts').fetchone()[0]
+    on_time  = conn.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаандаа'").fetchone()[0]
+    overdue  = conn.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаа хэтэрсэн'").fetchone()[0]
+    conn.close()
+
+    return render_template(
+        'index.html',
+        contracts=contracts,
+        departments=DEPARTMENTS,
+        search=search, dept=dept, cat=cat,
+        total=total, on_time=on_time, overdue=overdue
+    )
+
+
+# -----------------------------------------------------------
+# Add new contract (manual)
+# -----------------------------------------------------------
+@app.route('/add', methods=['GET', 'POST'])
+@login_required
+def add():
+    if request.method == 'POST':
+        conn = get_db()
+        # Auto-increment dd
+        last = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+        dd   = (last['m'] or 0) + 1
+
+        merchant_name        = request.form.get('merchant_name', '').strip()
+        pos_serial           = request.form.get('pos_serial', '').strip()
+        merchant_number      = request.form.get('merchant_number', '').strip()
+        terminal_number      = request.form.get('terminal_number', '').strip()
+        status               = request.form.get('status', '').strip()
+        pos_issue_date       = request.form.get('pos_issue_date', '').strip()
+        phone                = request.form.get('phone', '').strip()
+        merchant_type        = request.form.get('merchant_type', '').strip()
+        issued_by            = request.form.get('issued_by', '').strip()
+        department           = request.form.get('department', '').strip()
+        expected_date        = request.form.get('expected_date', '').strip()
+        received_date        = request.form.get('received_date', '').strip()
+        first_inspection     = request.form.get('first_inspection', '').strip()
+        description          = request.form.get('description', '').strip()
+        return_date          = request.form.get('return_date', '').strip()
+        return_date_2        = request.form.get('return_date_2', '').strip()
+        return_date_3        = request.form.get('return_date_3', '').strip()
+        return_date_4        = request.form.get('return_date_4', '').strip()
+        return_date_5        = request.form.get('return_date_5', '').strip()
+        last_inspection_date = request.form.get('last_inspection_date', '').strip()
+
+        overdue_days  = calculate_overdue(expected_date, received_date)
+        time_category = get_time_category(overdue_days)
+
+        conn.execute('''
+            INSERT INTO contracts
+            (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+             status, pos_issue_date, phone, merchant_type, issued_by, department,
+             expected_date, received_date, overdue_days, time_category,
+             first_inspection, description,
+             return_date, return_date_2, return_date_3, return_date_4, return_date_5,
+             last_inspection_date)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+              status, pos_issue_date, phone, merchant_type, issued_by, department,
+              expected_date, received_date, overdue_days, time_category,
+              first_inspection, description,
+              return_date, return_date_2, return_date_3, return_date_4, return_date_5,
+              last_inspection_date))
+        conn.commit()
+        conn.close()
+
+        flash('Бүртгэл амжилттай хийгдлээ!', 'success')
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    last   = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+    next_dd = (last['m'] or 0) + 1
+    conn.close()
+    return render_template('add.html', next_dd=next_dd,
+                           departments=DEPARTMENTS,
+                           statuses=STATUSES,
+                           inspection_results=INSPECTION_RESULTS)
+
+
+# -----------------------------------------------------------
+# Edit existing contract
+# -----------------------------------------------------------
+@app.route('/edit/<int:cid>', methods=['GET', 'POST'])
+@login_required
+def edit(cid):
+    conn = get_db()
+    contract = conn.execute('SELECT * FROM contracts WHERE id=?', (cid,)).fetchone()
+    if not contract:
+        flash('Бүртгэл олдсонгүй!', 'error')
+        conn.close()
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        merchant_name        = request.form.get('merchant_name', '').strip()
+        pos_serial           = request.form.get('pos_serial', '').strip()
+        merchant_number      = request.form.get('merchant_number', '').strip()
+        terminal_number      = request.form.get('terminal_number', '').strip()
+        status               = request.form.get('status', '').strip()
+        pos_issue_date       = request.form.get('pos_issue_date', '').strip()
+        phone                = request.form.get('phone', '').strip()
+        merchant_type        = request.form.get('merchant_type', '').strip()
+        issued_by            = request.form.get('issued_by', '').strip()
+        department           = request.form.get('department', '').strip()
+        expected_date        = request.form.get('expected_date', '').strip()
+        received_date        = request.form.get('received_date', '').strip()
+        first_inspection     = request.form.get('first_inspection', '').strip()
+        description          = request.form.get('description', '').strip()
+        return_date          = request.form.get('return_date', '').strip()
+        return_date_2        = request.form.get('return_date_2', '').strip()
+        return_date_3        = request.form.get('return_date_3', '').strip()
+        return_date_4        = request.form.get('return_date_4', '').strip()
+        return_date_5        = request.form.get('return_date_5', '').strip()
+        last_inspection_date = request.form.get('last_inspection_date', '').strip()
+        is_inactive          = '1' if request.form.get('is_inactive') else ''
+        inactive_reason      = request.form.get('inactive_reason', '').strip()
+
+        overdue_days  = calculate_overdue(expected_date, received_date)
+        time_category = get_time_category(overdue_days)
+
+        conn.execute('''
+            UPDATE contracts SET
+                merchant_name=?, pos_serial=?, merchant_number=?, terminal_number=?,
+                status=?, pos_issue_date=?, phone=?, merchant_type=?, issued_by=?,
+                department=?, expected_date=?, received_date=?,
+                overdue_days=?, time_category=?,
+                first_inspection=?, description=?,
+                return_date=?, return_date_2=?, return_date_3=?, return_date_4=?, return_date_5=?,
+                last_inspection_date=?, is_inactive=?, inactive_reason=?
+            WHERE id=?
+        ''', (merchant_name, pos_serial, merchant_number, terminal_number,
+              status, pos_issue_date, phone, merchant_type, issued_by,
+              department, expected_date, received_date,
+              overdue_days, time_category,
+              first_inspection, description,
+              return_date, return_date_2, return_date_3, return_date_4, return_date_5,
+              last_inspection_date, is_inactive, inactive_reason, cid))
+        conn.commit()
+        conn.close()
+
+        flash('Бүртгэл амжилттай шинэчлэгдлээ!', 'success')
+        return redirect(url_for('index'))
+
+    conn.close()
+    return render_template('edit.html', c=contract,
+                           departments=DEPARTMENTS,
+                           statuses=STATUSES,
+                           inspection_results=INSPECTION_RESULTS)
+
+
+# -----------------------------------------------------------
+# Delete
+# -----------------------------------------------------------
+@app.route('/delete/<int:cid>', methods=['POST'])
+@login_required
+def delete(cid):
+    conn = get_db()
+    conn.execute('DELETE FROM contracts WHERE id=?', (cid,))
+    conn.commit()
+    conn.close()
+    flash('Бүртгэл устгагдлаа!', 'info')
+    return redirect(url_for('index'))
+
+
+# -----------------------------------------------------------
+# Excel import page (GET) + process (POST)
+# -----------------------------------------------------------
+
+# Column name aliases (Mongolian headers → field name)
+HEADER_MAP = {
+    'посын мерчантын нэр': 'merchant_name',
+    'мерчантын нэр':       'merchant_name',
+    'нэр':                 'merchant_name',
+    'посын сериал':        'pos_serial',
+    'сериал':              'pos_serial',
+    'мерчантын дугаар':    'merchant_number',
+    'терминалын дугаар':   'terminal_number',
+    'терминал':            'terminal_number',
+    'пос гаргасан огноо':  'pos_issue_date',
+    'огноо':               'pos_issue_date',
+    'утас':                'phone',
+    'мерчантын хэлбэр':    'merchant_type',
+    'хэлбэр':              'merchant_type',
+    'мерчант гаргасан ажилтан': 'issued_by',
+    'ажилтан':             'issued_by',
+    'төлөв':               'status',
+    'гэрээний төлөв':      'status',
+    'д/д':                 'dd_col',
+    'дугаар':              'dd_col',
+    '№':                   'dd_col',
+}
+
+# Default positional mapping (0-based column index) when no recognizable header
+POSITIONAL_MAP = {
+    0: 'dd_col',
+    1: 'merchant_name',
+    2: 'pos_serial',
+    3: 'merchant_number',
+    4: 'terminal_number',
+    5: 'status',
+    6: 'pos_issue_date',
+    7: 'phone',
+    8: 'merchant_type',
+    9: 'issued_by',
+}
+
+
+def cell_val(v):
+    """Convert cell value to clean string."""
+    if v is None:
+        return ''
+    if isinstance(v, datetime):
+        return v.strftime('%Y-%m-%d')
+    if isinstance(v, date):
+        return v.isoformat()
+    return str(v).strip()
+
+
+@app.route('/import-page')
+@login_required
+def import_page():
+    return render_template('import_page.html')
+
+
+@app.route('/import', methods=['POST'])
+@login_required
+def import_excel():
+    if 'file' not in request.files:
+        flash('Файл сонгоогүй байна!', 'error')
+        return redirect(url_for('import_page'))
+
+    file = request.files['file']
+    if not file or file.filename == '':
+        flash('Файл сонгоогүй байна!', 'error')
+        return redirect(url_for('import_page'))
+
+    if not file.filename.lower().endswith('.xlsx'):
+        flash('Зөвхөн Excel .xlsx файл оруулна уу!', 'error')
+        return redirect(url_for('import_page'))
+
+    try:
+        wb = load_workbook(file, data_only=True)
+        ws = wb.active
+
+        # ── Detect headers from row 1 ──────────────────────────
+        first_row = [cell_val(c) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))]
+        col_map = {}   # field_name → column index (0-based)
+
+        has_header = False
+        for idx, h in enumerate(first_row):
+            key = h.lower().strip()
+            if key in HEADER_MAP:
+                field = HEADER_MAP[key]
+                if field != 'dd_col':
+                    col_map[field] = idx
+                has_header = True
+
+        if not has_header:
+            # Fall back to positional mapping
+            for idx, field in POSITIONAL_MAP.items():
+                if field != 'dd_col':
+                    col_map[field] = idx
+
+        data_start_row = 2 if has_header else 1
+
+        # ── Read data rows ─────────────────────────────────────
+        conn = get_db()
+        last = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+        dd   = (last['m'] or 0) + 1
+
+        imported  = 0
+        skipped   = 0
+        err_rows  = []
+
+        def get_field(row, field):
+            idx = col_map.get(field)
+            if idx is None or idx >= len(row):
+                return ''
+            return cell_val(row[idx])
+
+        for r_idx, row in enumerate(ws.iter_rows(min_row=data_start_row, values_only=True), start=data_start_row):
+            if not any(v for v in row if v not in (None, '')):
+                continue
+            try:
+                merchant_name   = get_field(row, 'merchant_name')
+                pos_serial      = get_field(row, 'pos_serial')
+                merchant_number = get_field(row, 'merchant_number')
+                terminal_number = get_field(row, 'terminal_number')
+                status          = get_field(row, 'status')
+                pos_issue_date  = get_field(row, 'pos_issue_date')
+                phone           = get_field(row, 'phone')
+                merchant_type   = get_field(row, 'merchant_type')
+                issued_by       = get_field(row, 'issued_by')
+
+                if not merchant_name:
+                    skipped += 1
+                    continue
+
+                conn.execute('''
+                    INSERT INTO contracts
+                    (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                     status, pos_issue_date, phone, merchant_type, issued_by, time_category)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                      status, pos_issue_date, phone, merchant_type, issued_by, 'Хугацаа хэтэрсэн'))
+                dd       += 1
+                imported += 1
+
+            except Exception as ex:
+                err_rows.append(f'Мөр {r_idx}: {ex}')
+
+        conn.commit()
+        conn.close()
+
+        if imported:
+            msg = f'{imported} бүртгэл амжилттай импортлогдлоо!'
+            if skipped:
+                msg += f'  {skipped} хоосон мөр орхигдлоо.'
+            if err_rows:
+                msg += f'  {len(err_rows)} мөр алдаатай байлаа.'
+            flash(msg, 'success')
+        else:
+            flash('Импортлох мэдээлэл олдсонгүй. Файлын формат зөв эсэхийг шалгана уу.', 'error')
+
+    except Exception as e:
+        flash(f'Файл уншихад алдаа гарлаа: {str(e)}', 'error')
+
+    return redirect(url_for('index'))
+
+
+# -----------------------------------------------------------
+# Download Excel template
+# -----------------------------------------------------------
+@app.route('/template')
+def download_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Мерчант бүртгэл'
+
+    headers = [
+        'Д/д',
+        'Посын мерчантын нэр',
+        'Посын сериал',
+        'Мерчантын дугаар',
+        'Терминалын дугаар',
+        'Төлөв',
+        'Пос гаргасан огноо',
+        'Утас',
+        'Мерчантын хэлбэр',
+        'Мерчант гаргасан ажилтан',
+    ]
+    col_widths = [6, 30, 18, 18, 18, 18, 20, 16, 22, 26]
+
+    header_font  = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+    header_fill  = PatternFill('solid', fgColor='1E3A5F')
+    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    sample_fill  = PatternFill('solid', fgColor='F0F4FA')
+    thin         = Side(style='thin', color='CCCCCC')
+    border       = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws.row_dimensions[1].height = 32
+    for i, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = header_font; c.fill = header_fill
+        c.alignment = header_align; c.border = border
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # Sample rows
+    samples = [
+        [1, 'Дэлгүүрийн нэр ХХК', 'SN123456', 'M001234', 'T009876', 'Гэрээ',    '2026-01-15', '99001122', 'Бизнес',    'Болд Б'],
+        [2, 'Жишээ ХХК',           'SN654321', 'M005678', 'T005432', 'Зарагдсан', '2026-02-20', '88112233', 'Хувиараа', 'Сарнай Д'],
+    ]
+    for r_idx, row in enumerate(samples, start=2):
+        ws.row_dimensions[r_idx].height = 18
+        for c_idx, val in enumerate(row, start=1):
+            c = ws.cell(row=r_idx, column=c_idx, value=val)
+            c.fill = sample_fill; c.border = border
+            c.alignment = Alignment(horizontal='center', vertical='center')
+
+    ws.freeze_panes = 'A2'
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return send_file(out,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True,
+                     download_name='merchant_template.xlsx')
+
+
+# -----------------------------------------------------------
+# Admin page
+# -----------------------------------------------------------
+@app.route('/admin')
+@login_required
+def admin():
+    conn = get_db()
+    contracts = conn.execute('SELECT * FROM contracts ORDER BY dd').fetchall()
+
+    total   = len(contracts)
+    on_time = sum(1 for c in contracts if c['time_category'] == 'Хугацаандаа')
+    overdue = sum(1 for c in contracts if c['time_category'] == 'Хугацаа хэтэрсэн')
+
+    by_dept = {}
+    for c in contracts:
+        d = c['department'] or 'Тодорхойгүй'
+        by_dept[d] = by_dept.get(d, 0) + 1
+
+    by_result = {}
+    for c in contracts:
+        r = c['first_inspection'] or 'Тодорхойгүй'
+        by_result[r] = by_result.get(r, 0) + 1
+
+    conn.close()
+    return render_template('admin.html',
+                           contracts=contracts,
+                           total=total, on_time=on_time, overdue=overdue,
+                           by_dept=by_dept, by_result=by_result)
+
+
+# -----------------------------------------------------------
+# Dashboard
+# -----------------------------------------------------------
+@app.route('/dashboard')
+def dashboard():
+    import calendar
+    from datetime import date as dt_date
+    today = dt_date.today()
+
+    MONTHS_MN = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар',
+                 '7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар']
+
+    # ── Parameters ────────────────────────────────────────────
+    period    = request.args.get('period', 'month')   # day|month|quarter|halfyear|year|custom
+    sel_month = request.args.get('sel_month', '')     # YYYY-MM
+    sel_q     = request.args.get('sel_q', '')         # YYYY-Q1/Q2/Q3/Q4
+    sel_half  = request.args.get('sel_half', '')      # YYYY-H1 / YYYY-H2
+    sel_year  = request.args.get('sel_year', '')      # YYYY
+    dept      = request.args.get('dept', '')
+    employee  = request.args.get('employee', '')
+    date_from = request.args.get('date_from', '')
+    date_to   = request.args.get('date_to', '')
+
+    # ── Resolve date range ────────────────────────────────────
+    if period == 'day':
+        d_from = today.isoformat()
+        d_to   = today.isoformat()
+
+    elif period == 'month':
+        if sel_month:
+            try:
+                y, m = map(int, sel_month.split('-'))
+                d_from = dt_date(y, m, 1).isoformat()
+                d_to   = dt_date(y, m, calendar.monthrange(y, m)[1]).isoformat()
+            except Exception:
+                d_from = today.replace(day=1).isoformat()
+                d_to   = today.isoformat()
+        else:
+            d_from = today.replace(day=1).isoformat()
+            d_to   = today.isoformat()
+
+    elif period == 'quarter':
+        if sel_q:
+            try:
+                parts = sel_q.split('-Q')
+                y = int(parts[0]); q = int(parts[1])
+                m_start = (q - 1) * 3 + 1
+                m_end   = m_start + 2
+                d_from  = dt_date(y, m_start, 1).isoformat()
+                d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
+            except Exception:
+                q_start = ((today.month - 1) // 3) * 3 + 1
+                d_from  = today.replace(month=q_start, day=1).isoformat()
+                d_to    = today.isoformat()
+        else:
+            q_start = ((today.month - 1) // 3) * 3 + 1
+            d_from  = today.replace(month=q_start, day=1).isoformat()
+            d_to    = today.isoformat()
+
+    elif period == 'halfyear':
+        if sel_half:
+            try:
+                parts = sel_half.split('-H')
+                y = int(parts[0]); h = int(parts[1])
+                m_start = 1 if h == 1 else 7
+                m_end   = 6 if h == 1 else 12
+                d_from  = dt_date(y, m_start, 1).isoformat()
+                d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
+            except Exception:
+                h_start = 1 if today.month <= 6 else 7
+                d_from  = today.replace(month=h_start, day=1).isoformat()
+                d_to    = today.isoformat()
+        else:
+            h_start = 1 if today.month <= 6 else 7
+            d_from  = today.replace(month=h_start, day=1).isoformat()
+            d_to    = today.isoformat()
+
+    elif period == 'year':
+        y = int(sel_year) if sel_year else today.year
+        d_from = dt_date(y, 1, 1).isoformat()
+        d_to   = dt_date(y, 12, 31).isoformat()
+
+    elif period == 'custom' and date_from and date_to:
+        d_from = date_from
+        d_to   = date_to
+
+    else:
+        d_from = today.replace(day=1).isoformat()
+        d_to   = today.isoformat()
+        period = 'month'
+
+    # ── Build base query ──────────────────────────────────────
+    conn = get_db()
+
+    # All employees for dropdown
+    all_employees = [r[0] for r in conn.execute(
+        "SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by"
+    ).fetchall()]
+
+    base_cond   = "WHERE DATE(pos_issue_date) BETWEEN ? AND ?"
+    base_params = [d_from, d_to]
+    if dept:
+        base_cond  += " AND department = ?"
+        base_params.append(dept)
+    if employee:
+        base_cond  += " AND issued_by = ?"
+        base_params.append(employee)
+
+    all_rows = conn.execute(f"SELECT * FROM contracts {base_cond}", base_params).fetchall()
+    inactive_count = sum(1 for r in all_rows if r['is_inactive'] == '1')
+    rows = [r for r in all_rows if r['is_inactive'] != '1']
+
+    total   = len(rows)
+    on_time = sum(1 for r in rows if r['time_category'] == 'Хугацаандаа')
+    overdue = total - on_time
+
+    on_time_pct = round(on_time / total * 100, 1) if total else 0
+    overdue_pct = round(overdue / total * 100, 1) if total else 0
+
+    overdue_days_list = [r['overdue_days'] for r in rows
+                         if r['overdue_days'] is not None and r['overdue_days'] > 0]
+    avg_overdue = round(sum(overdue_days_list) / len(overdue_days_list), 1) if overdue_days_list else 0
+    max_overdue = max(overdue_days_list) if overdue_days_list else 0
+
+    COMPLETE_VALS = {'Бүрэн', 'Салбар дээр архивлагдсан/бүрэн'}
+    complete      = sum(1 for r in rows if r['first_inspection'] in COMPLETE_VALS)
+    returned      = sum(1 for r in rows if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5'])
+    # Not-received contracts + their overdue days calculated up to today
+    not_received_rows = [r for r in rows if not r['received_date']]
+    not_received = len(not_received_rows)
+
+    nr_overdue_days = []
+    for r in not_received_rows:
+        if r['expected_date']:
+            try:
+                exp = datetime.strptime(r['expected_date'], '%Y-%m-%d').date()
+                diff = (today - exp).days
+                if diff > 0:
+                    nr_overdue_days.append(diff)
+            except Exception:
+                pass
+
+    nr_avg_overdue = round(sum(nr_overdue_days) / len(nr_overdue_days), 1) if nr_overdue_days else 0
+    nr_max_overdue = max(nr_overdue_days) if nr_overdue_days else 0
+
+    incomplete = total - complete
+
+    complete_pct = round(complete / total * 100, 1) if total else 0
+    returned_pct = round(returned / total * 100, 1) if total else 0
+
+    insp_counts = {}
+    for r in rows:
+        k = r['first_inspection'] or 'Тодорхойгүй'
+        insp_counts[k] = insp_counts.get(k, 0) + 1
+
+    dept_stats = {}
+    for r in rows:
+        d = r['department'] or 'Тодорхойгүй'
+        if d not in dept_stats:
+            dept_stats[d] = {'total': 0, 'on_time': 0, 'overdue': 0, 'returned': 0}
+        dept_stats[d]['total'] += 1
+        if r['time_category'] == 'Хугацаандаа':
+            dept_stats[d]['on_time'] += 1
+        else:
+            dept_stats[d]['overdue'] += 1
+        if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5']:
+            dept_stats[d]['returned'] += 1
+
+    # ── Monthly trend (last 6 months) ────────────────────────
+    trend = []
+    for i in range(5, -1, -1):
+        month = today.month - i
+        year  = today.year
+        while month <= 0:
+            month += 12; year -= 1
+        m_from = dt_date(year, month, 1).isoformat()
+        m_to   = dt_date(year, month, calendar.monthrange(year, month)[1]).isoformat()
+        t_params = [m_from, m_to]
+        t_cond   = "WHERE DATE(pos_issue_date) BETWEEN ? AND ?"
+        t_total  = conn.execute(f"SELECT COUNT(*) FROM contracts {t_cond}", t_params).fetchone()[0]
+        t_on     = conn.execute(f"SELECT COUNT(*) FROM contracts {t_cond} AND time_category='Хугацаандаа'", t_params).fetchone()[0]
+        trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_total - t_on})
+
+    # ── Build year options for selectors ─────────────────────
+    min_year_row = conn.execute("SELECT MIN(substr(pos_issue_date,1,4)) FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''").fetchone()[0]
+    min_year     = int(min_year_row) if min_year_row else today.year
+    years        = list(range(today.year, min_year - 1, -1))
+
+    conn.close()
+
+    return render_template('dashboard.html',
+        period=period, dept=dept, employee=employee,
+        sel_month=sel_month, sel_q=sel_q, sel_half=sel_half, sel_year=sel_year,
+        date_from=date_from, date_to=date_to,
+        d_from=d_from, d_to=d_to,
+        departments=DEPARTMENTS, all_employees=all_employees,
+        years=years, today=today.isoformat(),
+        months_mn=MONTHS_MN,
+        total=total, on_time=on_time, overdue=overdue,
+        on_time_pct=on_time_pct, overdue_pct=overdue_pct,
+        avg_overdue=avg_overdue, max_overdue=max_overdue,
+        complete=complete, incomplete=incomplete, returned=returned,
+        not_received=not_received, nr_avg_overdue=nr_avg_overdue, nr_max_overdue=nr_max_overdue,
+        complete_pct=complete_pct, returned_pct=returned_pct,
+        insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,
+        inactive_count=inactive_count,
+    )
+
+
+# -----------------------------------------------------------
+# Export to Excel
+# -----------------------------------------------------------
+@app.route('/export')
+@login_required
+def export():
+    conn = get_db()
+    contracts = conn.execute('SELECT * FROM contracts ORDER BY dd').fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Гэрээ бүртгэл'
+
+    # Styles
+    header_font    = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
+    header_fill    = PatternFill('solid', fgColor='2C3E50')
+    header_align   = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    center_align   = Alignment(horizontal='center', vertical='center')
+    wrap_align     = Alignment(horizontal='left',   vertical='center', wrap_text=True)
+    on_time_fill   = PatternFill('solid', fgColor='D5F5E3')
+    overdue_fill   = PatternFill('solid', fgColor='FADBD8')
+    thin           = Side(style='thin', color='CCCCCC')
+    border         = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers = [
+        'Д/д', 'Посын мерчантын нэр', 'Посын сериал', 'Мерчантын дугаар',
+        'Терминалын дугаар', 'Пос гаргасан огноо', 'Утас', 'Мерчантын хэлбэр',
+        'Мерчант гаргасан ажилтан', 'Хэлтэс',
+        'Гэрээ ирсэн байх ёстой огноо', 'Гэрээ хүлээн авсан огноо',
+        'Хугацаа хэтэрсэн хоног', 'Хугацааны ангилал',
+        'Эхний хяналтаарх үр дүн', 'Тайлбар',
+        'Буцаасан огноо', 'Сүүлийн хяналтаар хүлээн авсан огноо'
+    ]
+
+    col_widths = [6, 28, 18, 18, 18, 18, 16, 20, 24, 18,
+                  22, 22, 20, 20, 30, 30, 18, 30]
+
+    ws.row_dimensions[1].height = 36
+    for i, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=i, value=h)
+        cell.font   = header_font
+        cell.fill   = header_fill
+        cell.alignment = header_align
+        cell.border = border
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    for r_idx, row in enumerate(contracts, start=2):
+        ws.row_dimensions[r_idx].height = 20
+        values = [
+            row['dd'], row['merchant_name'], row['pos_serial'],
+            row['merchant_number'], row['terminal_number'], row['pos_issue_date'],
+            row['phone'], row['merchant_type'], row['issued_by'],
+            row['department'], row['expected_date'], row['received_date'],
+            row['overdue_days'], row['time_category'],
+            row['first_inspection'], row['description'],
+            row['return_date'], row['last_inspection_date']
+        ]
+        is_overdue = row['time_category'] == 'Хугацаа хэтэрсэн'
+        row_fill   = overdue_fill if is_overdue else on_time_fill
+
+        for c_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.border    = border
+            cell.alignment = wrap_align if c_idx in (2, 15, 16) else center_align
+            # Highlight time category column
+            if c_idx == 14:
+                cell.fill = row_fill
+
+    # Freeze header row
+    ws.freeze_panes = 'A2'
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"contract_registry_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(output,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True,
+                     download_name=filename)
+
+
+# -----------------------------------------------------------
+# API – autocomplete last-used values
+# -----------------------------------------------------------
+@app.route('/api/autocomplete')
+def autocomplete():
+    field = request.args.get('field', '')
+    q     = request.args.get('q', '')
+    allowed = {'merchant_name', 'merchant_type', 'issued_by', 'merchant_number', 'terminal_number'}
+    if field not in allowed:
+        return jsonify([])
+    conn = get_db()
+    rows = conn.execute(
+        f"SELECT DISTINCT {field} FROM contracts WHERE {field} LIKE ? ORDER BY {field} LIMIT 10",
+        (f'%{q}%',)
+    ).fetchall()
+    conn.close()
+    return jsonify([r[0] for r in rows if r[0]])
+
+
+init_db()
+
+if __name__ == '__main__':
+    import sys, io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    print('=' * 55)
+    print('  Гэрээ бүртгэл хяналтын систем')
+    print('  http://127.0.0.1:5000')
+    print('=' * 55)
+    app.run(debug=True, port=5000)

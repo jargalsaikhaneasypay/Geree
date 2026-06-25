@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Жагсаалт – Гэрээ бүртгэл{% endblock %}
+
+{% block page_title %}<h1 class="page-title">Бүртгэлийн жагсаалт</h1>{% endblock %}
+
+{% block content %}
+
+<!-- Stats cards -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-blue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ total }}</span>
+      <span class="stat-label">Нийт бүртгэл</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ on_time }}</span>
+      <span class="stat-label">Хугацаандаа</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-red">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="stat-info">
+      <span class="stat-value">{{ overdue }}</span>
+      <span class="stat-label">Хугацаа хэтэрсэн</span>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar card">
+  <form method="GET" class="toolbar-form">
+    <div class="search-box">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" name="search" value="{{ search }}" placeholder="Нэр, сериал, дугаараар хайх..." class="search-input" />
+    </div>
+    <select name="dept" class="select-filter">
+      <option value="">Бүх хэлтэс</option>
+      {% for d in departments %}
+        <option value="{{ d }}" {% if dept==d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    <select name="cat" class="select-filter">
+      <option value="">Бүх ангилал</option>
+      <option value="Хугацаандаа"   {% if cat=='Хугацаандаа'   %}selected{% endif %}>Хугацаандаа</option>
+      <option value="Хугацаа хэтэрсэн" {% if cat=='Хугацаа хэтэрсэн' %}selected{% endif %}>Хугацаа хэтэрсэн</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Хайх</button>
+    {% if search or dept or cat %}
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Цэвэрлэх</a>
+    {% endif %}
+  </form>
+
+  <div class="toolbar-actions">
+    <a href="{{ url_for('import_page') }}" class="btn btn-outline">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Excel оруулах
+    </a>
+
+    <a href="{{ url_for('add') }}" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Шинэ бүртгэл
+    </a>
+  </div>
+</div>
+
+<!-- Table -->
+<div class="card table-card">
+  {% if contracts %}
+  <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="col-dd">Д/д</th>
+          <th>Мерчантын нэр</th>
+          <th>Посын сериал</th>
+          <th>Мерч. дугаар</th>
+          <th>Терминал</th>
+          <th>Төлөв</th>
+          <th>Пос огноо</th>
+          <th>Утас</th>
+          <th>Хэлбэр</th>
+          <th>Ажилтан</th>
+          <th>Хэлтэс</th>
+          <th>Ирэх ёстой огноо</th>
+          <th>Хүлээн авсан огноо</th>
+          <th class="col-days">Хэтэрсэн хоног</th>
+          <th>Ангилал</th>
+          <th>Эхний хяналтын үр дүн</th>
+          <th>Тайлбар</th>
+          <th>Буцаасан огноо</th>
+          <th>Сүүлийн хяналт</th>
+          <th class="col-actions">Үйлдэл</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contracts %}
+        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% else %}row-ontime{% endif %}">
+          <td class="text-center fw-600">{{ c.dd }}</td>
+          <td class="fw-500">{{ c.merchant_name or '—' }}</td>
+          <td class="mono">{{ c.pos_serial or '—' }}</td>
+          <td class="mono">{{ c.merchant_number or '—' }}</td>
+          <td class="mono">{{ c.terminal_number or '—' }}</td>
+          <td class="text-center">
+            {% if c.status %}
+              <span class="badge badge-status-{{ c.status | replace('/', '-') | replace(' ', '-') }}">{{ c.status }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.pos_issue_date or '—' }}</td>
+          <td class="mono">{{ c.phone or '—' }}</td>
+          <td>{{ c.merchant_type or '—' }}</td>
+          <td>{{ c.issued_by or '—' }}</td>
+          <td>
+            {% if c.department %}
+              <span class="badge badge-dept">{{ c.department }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.expected_date or '—' }}</td>
+          <td class="text-center">{{ c.received_date or '—' }}</td>
+          <td class="text-center fw-600 {% if c.overdue_days and c.overdue_days > 0 %}text-danger{% elif c.overdue_days is not none %}text-success{% endif %}">
+            {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% else %}badge-danger{% endif %}">
+              {{ c.time_category }}
+            </span>
+          </td>
+          <td>
+            {% if c.first_inspection %}
+              <span class="badge badge-inspection">{{ c.first_inspection }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="td-wrap">{{ c.description or '—' }}</td>
+          <td class="text-center">
+            {% set rdates = [c.return_date, c.return_date_2, c.return_date_3, c.return_date_4, c.return_date_5] | select | list %}
+            {% if rdates %}
+              <span class="badge badge-danger" title="{{ rdates | join(', ') }}">
+                {{ rdates | length }}x буцаасан
+              </span>
+              <div class="return-dates-tip">{{ rdates | join(' · ') }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.last_inspection_date or '—' }}</td>
+          <td class="text-center">
+            <div class="action-btns">
+              <a href="{{ url_for('edit', cid=c.id) }}" class="action-btn action-btn-edit" title="Засах">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </a>
+              <button class="action-btn action-btn-del" title="Устгах"
+                      onclick="openDeleteModal({{ c.id }})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-footer">
+    <span class="table-count">Нийт <strong>{{ contracts|length }}</strong> бүртгэл</span>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <p>Бүртгэл байхгүй байна</p>
+    <a href="{{ url_for('add') }}" class="btn btn-primary">Шинэ бүртгэл нэмэх</a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}Шинэ бүртгэл – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Шинэ бүртгэл нэмэх</h1>{% endblock %}
+
+{% block content %}
+<div class="form-layout">
+  <form method="POST" action="{{ url_for('add') }}" id="contractForm">
+
+    <!-- Section 1: POS мэдээлэл -->
+    <div class="card form-card">
+      <div class="form-section-header">
+        <div class="section-num">1</div>
+        <div>
+          <h2 class="section-title">POS / Мерчантын мэдээлэл</h2>
+          <p class="section-sub">Excel-ээс авсан болон гараар оруулах үндсэн мэдээлэл</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Д/д <span class="req">*</span></label>
+          <input type="number" class="form-input" value="{{ next_dd }}" readonly disabled />
+          <span class="form-hint">Автоматаар тооцоологддог</span>
+        </div>
+
+        <div class="form-group form-group-wide">
+          <label class="form-label" for="merchant_name">Посын мерчантын нэр <span class="req">*</span></label>
+          <input type="text" id="merchant_name" name="merchant_name" class="form-input autocomplete-input"
+                 data-field="merchant_name" placeholder="Мерчантын нэр оруулах..." required autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_name"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="pos_serial">Посын сериал</label>
+          <input type="text" id="pos_serial" name="pos_serial" class="form-input"
+                 placeholder="Сериал дугаар..." />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merchant_number">Мерчантын дугаар</label>
+          <input type="text" id="merchant_number" name="merchant_number" class="form-input autocomplete-input"
+                 data-field="merchant_number" placeholder="Дугаар..." autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_number"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="terminal_number">Терминалын дугаар</label>
+          <input type="text" id="terminal_number" name="terminal_number" class="form-input autocomplete-input"
+                 data-field="terminal_number" placeholder="Терминал дугаар..." autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_terminal_number"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="status">Төлөв</label>
+          <select id="status" name="status" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for s in statuses %}
+              <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="pos_issue_date">Пос гаргасан огноо</label>
+          <input type="date" id="pos_issue_date" name="pos_issue_date" class="form-input" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="phone">Утас</label>
+          <input type="text" id="phone" name="phone" class="form-input" placeholder="Утасны дугаар..." />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merchant_type">Мерчантын хэлбэр</label>
+          <input type="text" id="merchant_type" name="merchant_type" class="form-input autocomplete-input"
+                 data-field="merchant_type" placeholder="Хэлбэр..." autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_type"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="issued_by">Мерчант гаргасан ажилтан</label>
+          <input type="text" id="issued_by" name="issued_by" class="form-input autocomplete-input"
+                 data-field="issued_by" placeholder="Ажилтны нэр..." autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_issued_by"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Хяналтын мэдээлэл -->
+    <div class="card form-card">
+      <div class="form-section-header">
+        <div class="section-num">2</div>
+        <div>
+          <h2 class="section-title">Гэрээний хяналтын мэдээлэл</h2>
+          <p class="section-sub">Хэлтэс, огноо болон хяналтын үр дүнг оруулна уу</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="department">Хэлтэс</label>
+          <select id="department" name="department" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for d in departments %}
+              <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expected_date">Гэрээ ирсэн байх ёстой огноо</label>
+          <input type="date" id="expected_date" name="expected_date" class="form-input" onchange="calcOverdue()" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="received_date">Гэрээ хүлээн авсан огноо</label>
+          <input type="date" id="received_date" name="received_date" class="form-input" onchange="calcOverdue()" />
+        </div>
+
+        <!-- Calculated fields (display only) -->
+        <div class="form-group">
+          <label class="form-label">Хугацаа хэтэрсэн хоног</label>
+          <div class="calc-field" id="overdueDaysDisplay">—</div>
+          <span class="form-hint">Автоматаар тооцоологддог</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Хугацааны ангилал</label>
+          <div class="calc-field" id="timeCategoryDisplay">—</div>
+          <span class="form-hint">Автоматаар тодорхойлогддог</span>
+        </div>
+
+        <div class="form-group form-group-wide">
+          <label class="form-label" for="first_inspection">Эхний хяналтаарх үр дүн</label>
+          <select id="first_inspection" name="first_inspection" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for r in inspection_results %}
+              <option value="{{ r }}">{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group form-group-full">
+          <label class="form-label" for="description">Тайлбар</label>
+          <textarea id="description" name="description" class="form-textarea" rows="3"
+                    placeholder="Нэмэлт тайлбар..."></textarea>
+        </div>
+
+        <div class="form-group form-group-full">
+          <label class="form-label">Буцаасан огноо <span class="form-hint" style="font-weight:400">(дээд тал 5 удаа)</span></label>
+          <div class="return-dates-grid">
+            {% for i in range(1, 6) %}
+            <div class="return-date-item">
+              <span class="return-date-num">{{ i }}</span>
+              <input type="date" name="{{ 'return_date' if i==1 else 'return_date_'+i|string }}" class="form-input" />
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="last_inspection_date">Сүүлийн хяналтаар хүлээн авсан огноо</label>
+          <input type="date" id="last_inspection_date" name="last_inspection_date" class="form-input" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Form actions -->
+    <div class="form-actions">
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Болих</a>
+      <button type="submit" class="btn btn-primary btn-lg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Бүртгэл хадгалах
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+function calcOverdue() {
+  const exp = document.getElementById('expected_date').value;
+  const rec = document.getElementById('received_date').value;
+  const daysEl = document.getElementById('overdueDaysDisplay');
+  const catEl  = document.getElementById('timeCategoryDisplay');
+  if (exp && rec) {
+    const diff = Math.round((new Date(rec) - new Date(exp)) / 86400000);
+    daysEl.textContent = diff;
+    daysEl.className   = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
+    catEl.textContent  = diff <= 0 ? 'Хугацаандаа' : 'Хугацаа хэтэрсэн';
+    catEl.className    = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
+  } else {
+    daysEl.textContent = '—';
+    daysEl.className   = 'calc-field';
+    catEl.textContent  = exp && !rec ? 'Хугацаа хэтэрсэн' : '—';
+    catEl.className    = 'calc-field' + (exp && !rec ? ' calc-field-bad' : '');
+  }
+}
+</script>
+{% endblock %}

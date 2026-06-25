@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block title %}Засах – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Бүртгэл засах — №{{ c.dd }}</h1>{% endblock %}
+
+{% block content %}
+<div class="form-layout">
+  <form method="POST" action="{{ url_for('edit', cid=c.id) }}" id="contractForm">
+
+    <!-- Section 1 -->
+    <div class="card form-card">
+      <div class="form-section-header">
+        <div class="section-num">1</div>
+        <div>
+          <h2 class="section-title">POS / Мерчантын мэдээлэл</h2>
+          <p class="section-sub">Үндсэн мэдээллийг засах</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Д/д</label>
+          <input type="text" class="form-input" value="{{ c.dd }}" readonly disabled />
+        </div>
+
+        <div class="form-group form-group-wide">
+          <label class="form-label" for="merchant_name">Посын мерчантын нэр <span class="req">*</span></label>
+          <input type="text" id="merchant_name" name="merchant_name" class="form-input autocomplete-input"
+                 data-field="merchant_name" value="{{ c.merchant_name or '' }}" required autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_name"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="pos_serial">Посын сериал</label>
+          <input type="text" id="pos_serial" name="pos_serial" class="form-input" value="{{ c.pos_serial or '' }}" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merchant_number">Мерчантын дугаар</label>
+          <input type="text" id="merchant_number" name="merchant_number" class="form-input autocomplete-input"
+                 data-field="merchant_number" value="{{ c.merchant_number or '' }}" autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_number"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="terminal_number">Терминалын дугаар</label>
+          <input type="text" id="terminal_number" name="terminal_number" class="form-input autocomplete-input"
+                 data-field="terminal_number" value="{{ c.terminal_number or '' }}" autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_terminal_number"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="status">Төлөв</label>
+          <select id="status" name="status" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for s in statuses %}
+              <option value="{{ s }}" {% if c.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="pos_issue_date">Пос гаргасан огноо</label>
+          <input type="date" id="pos_issue_date" name="pos_issue_date" class="form-input" value="{{ c.pos_issue_date or '' }}" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="phone">Утас</label>
+          <input type="text" id="phone" name="phone" class="form-input" value="{{ c.phone or '' }}" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="merchant_type">Мерчантын хэлбэр</label>
+          <input type="text" id="merchant_type" name="merchant_type" class="form-input autocomplete-input"
+                 data-field="merchant_type" value="{{ c.merchant_type or '' }}" autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_merchant_type"></ul>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="issued_by">Мерчант гаргасан ажилтан</label>
+          <input type="text" id="issued_by" name="issued_by" class="form-input autocomplete-input"
+                 data-field="issued_by" value="{{ c.issued_by or '' }}" autocomplete="off" />
+          <ul class="autocomplete-list" id="ac_issued_by"></ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2 -->
+    <div class="card form-card">
+      <div class="form-section-header">
+        <div class="section-num">2</div>
+        <div>
+          <h2 class="section-title">Гэрээний хяналтын мэдээлэл</h2>
+          <p class="section-sub">Хяналтын мэдээллийг шинэчлэх</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="department">Хэлтэс</label>
+          <select id="department" name="department" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for d in departments %}
+              <option value="{{ d }}" {% if c.department == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="expected_date">Гэрээ ирсэн байх ёстой огноо</label>
+          <input type="date" id="expected_date" name="expected_date" class="form-input"
+                 value="{{ c.expected_date or '' }}" onchange="calcOverdue()" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="received_date">Гэрээ хүлээн авсан огноо</label>
+          <input type="date" id="received_date" name="received_date" class="form-input"
+                 value="{{ c.received_date or '' }}" onchange="calcOverdue()" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Хугацаа хэтэрсэн хоног</label>
+          <div class="calc-field {% if c.overdue_days is not none %}{% if c.overdue_days <= 0 %}calc-field-ok{% else %}calc-field-bad{% endif %}{% endif %}"
+               id="overdueDaysDisplay">
+            {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
+          </div>
+          <span class="form-hint">Автоматаар тооцоологддог</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Хугацааны ангилал</label>
+          <div class="calc-field {% if c.time_category == 'Хугацаандаа' %}calc-field-ok{% elif c.time_category %}calc-field-bad{% endif %}"
+               id="timeCategoryDisplay">
+            {{ c.time_category or '—' }}
+          </div>
+          <span class="form-hint">Автоматаар тодорхойлогддог</span>
+        </div>
+
+        <div class="form-group form-group-wide">
+          <label class="form-label" for="first_inspection">Эхний хяналтаарх үр дүн</label>
+          <select id="first_inspection" name="first_inspection" class="form-select">
+            <option value="">— Сонгох —</option>
+            {% for r in inspection_results %}
+              <option value="{{ r }}" {% if c.first_inspection == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group form-group-full">
+          <label class="form-label" for="description">Тайлбар</label>
+          <textarea id="description" name="description" class="form-textarea" rows="3">{{ c.description or '' }}</textarea>
+        </div>
+
+        <div class="form-group form-group-full">
+          <label class="form-label">Буцаасан огноо <span class="form-hint" style="font-weight:400">(дээд тал 5 удаа)</span></label>
+          <div class="return-dates-grid">
+            {% set rvals = [c.return_date or '', c.return_date_2 or '', c.return_date_3 or '', c.return_date_4 or '', c.return_date_5 or ''] %}
+            {% for i in range(1, 6) %}
+            <div class="return-date-item">
+              <span class="return-date-num">{{ i }}</span>
+              <input type="date" name="{{ 'return_date' if i==1 else 'return_date_'+i|string }}"
+                     class="form-input" value="{{ rvals[i-1] }}" />
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="last_inspection_date">Сүүлийн хяналтаар хүлээн авсан огноо</label>
+          <input type="date" id="last_inspection_date" name="last_inspection_date" class="form-input"
+                 value="{{ c.last_inspection_date or '' }}" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Идэвхгүй болгох -->
+    <div class="form-section" style="border:2px solid var(--warning);border-radius:var(--radius);padding:20px 24px;background:var(--warning-light)">
+      <div class="section-header" style="margin-bottom:16px">
+        <div class="section-number" style="background:var(--warning)">!</div>
+        <div>
+          <div class="section-title" style="color:var(--warning)">Гэрээг идэвхгүй болгох</div>
+          <div class="section-sub">Идэвхгүй болгосон гэрээ дашбоардын тооцооллд орохгүй</div>
+        </div>
+      </div>
+      <div class="form-grid" style="grid-template-columns:auto 1fr;align-items:center;gap:16px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;color:var(--warning);white-space:nowrap">
+          <input type="checkbox" name="is_inactive" id="is_inactive" value="1"
+                 {% if c.is_inactive == '1' %}checked{% endif %}
+                 onchange="document.getElementById('inactive_reason_wrap').style.display=this.checked?'block':'none'"
+                 style="width:18px;height:18px;cursor:pointer;accent-color:var(--warning)" />
+          Идэвхгүй болгох
+        </label>
+        <div id="inactive_reason_wrap" style="display:{% if c.is_inactive == '1' %}block{% else %}none{% endif %}">
+          <input type="text" name="inactive_reason" class="form-input" placeholder="Шалтгаан тайлбарлана уу..."
+                 value="{{ c.inactive_reason or '' }}" />
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Болих</a>
+      <button type="submit" class="btn btn-primary btn-lg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Өөрчлөлт хадгалах
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+function calcOverdue() {
+  const exp = document.getElementById('expected_date').value;
+  const rec = document.getElementById('received_date').value;
+  const daysEl = document.getElementById('overdueDaysDisplay');
+  const catEl  = document.getElementById('timeCategoryDisplay');
+  if (exp && rec) {
+    const diff = Math.round((new Date(rec) - new Date(exp)) / 86400000);
+    daysEl.textContent = diff;
+    daysEl.className   = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
+    catEl.textContent  = diff <= 0 ? 'Хугацаандаа' : 'Хугацаа хэтэрсэн';
+    catEl.className    = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
+  } else {
+    daysEl.textContent = '—';
+    daysEl.className   = 'calc-field';
+    catEl.textContent  = exp && !rec ? 'Хугацаа хэтэрсэн' : '—';
+    catEl.className    = 'calc-field' + (exp && !rec ? ' calc-field-bad' : '');
+  }
+}
+</script>
+{% endblock %}

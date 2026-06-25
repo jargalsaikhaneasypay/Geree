@@ -7,9 +7,5 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_PATH
-        value: /data/contracts.db
-    disk:
-      name: contracts-data
-      mountPath: /data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false

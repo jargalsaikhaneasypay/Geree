@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime, date, timedelta
 import openpyxl
@@ -30,8 +31,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-DATABASE = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'contracts.db'))
-
 DEPARTMENTS = ['Борлуулалт', 'ХҮА', 'Салбар', 'Хөдөө орон нутаг', 'Томилолт']
 STATUSES = ['Гэрээ', 'Зарагдсан', 'Нэр шилжүүлэг', 'Түрээс']
 INSPECTION_RESULTS = [
@@ -47,16 +46,16 @@ INSPECTION_RESULTS = [
 # Database helpers
 # -----------------------------------------------------------
 def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
     return conn
 
 
 def init_db():
     conn = get_db()
-    conn.execute('''
+    cur = conn.cursor()
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS contracts (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               SERIAL PRIMARY KEY,
             dd               INTEGER,
             merchant_name    TEXT,
             pos_serial       TEXT,
@@ -80,18 +79,15 @@ def init_db():
         )
     ''')
     conn.commit()
-    # Migrate: add missing columns
-    cols = [r[1] for r in conn.execute("PRAGMA table_info(contracts)").fetchall()]
     for new_col in ['status', 'return_date_2', 'return_date_3', 'return_date_4', 'return_date_5',
-                     'is_inactive', 'inactive_reason']:
-        if new_col not in cols:
-            conn.execute(f"ALTER TABLE contracts ADD COLUMN {new_col} TEXT")
+                    'is_inactive', 'inactive_reason']:
+        cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def calculate_overdue(expected_date, received_date):
-    """Returns (received - expected) in days, or None if dates are missing."""
     if not expected_date or not received_date:
         return None
     try:
@@ -148,6 +144,8 @@ def root():
 @login_required
 def index():
     conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+
     search = request.args.get('search', '').strip()
     dept   = request.args.get('dept', '').strip()
     cat    = request.args.get('cat', '').strip()
@@ -155,22 +153,28 @@ def index():
     query  = 'SELECT * FROM contracts WHERE 1=1'
     params = []
     if search:
-        query += ' AND (merchant_name LIKE ? OR pos_serial LIKE ? OR merchant_number LIKE ? OR terminal_number LIKE ?)'
+        query += ' AND (merchant_name LIKE %s OR pos_serial LIKE %s OR merchant_number LIKE %s OR terminal_number LIKE %s)'
         like = f'%{search}%'
         params.extend([like, like, like, like])
     if dept:
-        query += ' AND department = ?'
+        query += ' AND department = %s'
         params.append(dept)
     if cat:
-        query += ' AND time_category = ?'
+        query += ' AND time_category = %s'
         params.append(cat)
 
     query += ' ORDER BY dd'
-    contracts = conn.execute(query, params).fetchall()
+    cur.execute(query, params)
+    contracts = cur.fetchall()
 
-    total    = conn.execute('SELECT COUNT(*) FROM contracts').fetchone()[0]
-    on_time  = conn.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаандаа'").fetchone()[0]
-    overdue  = conn.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаа хэтэрсэн'").fetchone()[0]
+    cur.execute('SELECT COUNT(*) FROM contracts')
+    total = cur.fetchone()['count']
+    cur.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаандаа'")
+    on_time = cur.fetchone()['count']
+    cur.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаа хэтэрсэн'")
+    overdue = cur.fetchone()['count']
+
+    cur.close()
     conn.close()
 
     return render_template(
@@ -190,8 +194,9 @@ def index():
 def add():
     if request.method == 'POST':
         conn = get_db()
-        # Auto-increment dd
-        last = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+        cur  = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT MAX(dd) AS m FROM contracts')
+        last = cur.fetchone()
         dd   = (last['m'] or 0) + 1
 
         merchant_name        = request.form.get('merchant_name', '').strip()
@@ -218,7 +223,7 @@ def add():
         overdue_days  = calculate_overdue(expected_date, received_date)
         time_category = get_time_category(overdue_days)
 
-        conn.execute('''
+        cur.execute('''
             INSERT INTO contracts
             (dd, merchant_name, pos_serial, merchant_number, terminal_number,
              status, pos_issue_date, phone, merchant_type, issued_by, department,
@@ -226,7 +231,7 @@ def add():
              first_inspection, description,
              return_date, return_date_2, return_date_3, return_date_4, return_date_5,
              last_inspection_date)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
               status, pos_issue_date, phone, merchant_type, issued_by, department,
               expected_date, received_date, overdue_days, time_category,
@@ -234,14 +239,18 @@ def add():
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
               last_inspection_date))
         conn.commit()
+        cur.close()
         conn.close()
 
         flash('Бүртгэл амжилттай хийгдлээ!', 'success')
         return redirect(url_for('index'))
 
     conn = get_db()
-    last   = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT MAX(dd) AS m FROM contracts')
+    last    = cur.fetchone()
     next_dd = (last['m'] or 0) + 1
+    cur.close()
     conn.close()
     return render_template('add.html', next_dd=next_dd,
                            departments=DEPARTMENTS,
@@ -256,9 +265,12 @@ def add():
 @login_required
 def edit(cid):
     conn = get_db()
-    contract = conn.execute('SELECT * FROM contracts WHERE id=?', (cid,)).fetchone()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT * FROM contracts WHERE id=%s', (cid,))
+    contract = cur.fetchone()
     if not contract:
         flash('Бүртгэл олдсонгүй!', 'error')
+        cur.close()
         conn.close()
         return redirect(url_for('index'))
 
@@ -289,16 +301,16 @@ def edit(cid):
         overdue_days  = calculate_overdue(expected_date, received_date)
         time_category = get_time_category(overdue_days)
 
-        conn.execute('''
+        cur.execute('''
             UPDATE contracts SET
-                merchant_name=?, pos_serial=?, merchant_number=?, terminal_number=?,
-                status=?, pos_issue_date=?, phone=?, merchant_type=?, issued_by=?,
-                department=?, expected_date=?, received_date=?,
-                overdue_days=?, time_category=?,
-                first_inspection=?, description=?,
-                return_date=?, return_date_2=?, return_date_3=?, return_date_4=?, return_date_5=?,
-                last_inspection_date=?, is_inactive=?, inactive_reason=?
-            WHERE id=?
+                merchant_name=%s, pos_serial=%s, merchant_number=%s, terminal_number=%s,
+                status=%s, pos_issue_date=%s, phone=%s, merchant_type=%s, issued_by=%s,
+                department=%s, expected_date=%s, received_date=%s,
+                overdue_days=%s, time_category=%s,
+                first_inspection=%s, description=%s,
+                return_date=%s, return_date_2=%s, return_date_3=%s, return_date_4=%s, return_date_5=%s,
+                last_inspection_date=%s, is_inactive=%s, inactive_reason=%s
+            WHERE id=%s
         ''', (merchant_name, pos_serial, merchant_number, terminal_number,
               status, pos_issue_date, phone, merchant_type, issued_by,
               department, expected_date, received_date,
@@ -307,11 +319,13 @@ def edit(cid):
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
               last_inspection_date, is_inactive, inactive_reason, cid))
         conn.commit()
+        cur.close()
         conn.close()
 
         flash('Бүртгэл амжилттай шинэчлэгдлээ!', 'success')
         return redirect(url_for('index'))
 
+    cur.close()
     conn.close()
     return render_template('edit.html', c=contract,
                            departments=DEPARTMENTS,
@@ -326,8 +340,10 @@ def edit(cid):
 @login_required
 def delete(cid):
     conn = get_db()
-    conn.execute('DELETE FROM contracts WHERE id=?', (cid,))
+    cur  = conn.cursor()
+    cur.execute('DELETE FROM contracts WHERE id=%s', (cid,))
     conn.commit()
+    cur.close()
     conn.close()
     flash('Бүртгэл устгагдлаа!', 'info')
     return redirect(url_for('index'))
@@ -337,7 +353,6 @@ def delete(cid):
 # Excel import page (GET) + process (POST)
 # -----------------------------------------------------------
 
-# Column name aliases (Mongolian headers → field name)
 HEADER_MAP = {
     'посын мерчантын нэр': 'merchant_name',
     'мерчантын нэр':       'merchant_name',
@@ -361,7 +376,6 @@ HEADER_MAP = {
     '№':                   'dd_col',
 }
 
-# Default positional mapping (0-based column index) when no recognizable header
 POSITIONAL_MAP = {
     0: 'dd_col',
     1: 'merchant_name',
@@ -377,7 +391,6 @@ POSITIONAL_MAP = {
 
 
 def cell_val(v):
-    """Convert cell value to clean string."""
     if v is None:
         return ''
     if isinstance(v, datetime):
@@ -413,9 +426,8 @@ def import_excel():
         wb = load_workbook(file, data_only=True)
         ws = wb.active
 
-        # ── Detect headers from row 1 ──────────────────────────
         first_row = [cell_val(c) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))]
-        col_map = {}   # field_name → column index (0-based)
+        col_map = {}
 
         has_header = False
         for idx, h in enumerate(first_row):
@@ -427,16 +439,16 @@ def import_excel():
                 has_header = True
 
         if not has_header:
-            # Fall back to positional mapping
             for idx, field in POSITIONAL_MAP.items():
                 if field != 'dd_col':
                     col_map[field] = idx
 
         data_start_row = 2 if has_header else 1
 
-        # ── Read data rows ─────────────────────────────────────
         conn = get_db()
-        last = conn.execute('SELECT MAX(dd) as m FROM contracts').fetchone()
+        cur  = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT MAX(dd) AS m FROM contracts')
+        last = cur.fetchone()
         dd   = (last['m'] or 0) + 1
 
         imported  = 0
@@ -467,11 +479,11 @@ def import_excel():
                     skipped += 1
                     continue
 
-                conn.execute('''
+                cur.execute('''
                     INSERT INTO contracts
                     (dd, merchant_name, pos_serial, merchant_number, terminal_number,
                      status, pos_issue_date, phone, merchant_type, issued_by, time_category)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
                       status, pos_issue_date, phone, merchant_type, issued_by, 'Хугацаа хэтэрсэн'))
                 dd       += 1
@@ -481,6 +493,7 @@ def import_excel():
                 err_rows.append(f'Мөр {r_idx}: {ex}')
 
         conn.commit()
+        cur.close()
         conn.close()
 
         if imported:
@@ -536,7 +549,6 @@ def download_template():
         c.alignment = header_align; c.border = border
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    # Sample rows
     samples = [
         [1, 'Дэлгүүрийн нэр ХХК', 'SN123456', 'M001234', 'T009876', 'Гэрээ',    '2026-01-15', '99001122', 'Бизнес',    'Болд Б'],
         [2, 'Жишээ ХХК',           'SN654321', 'M005678', 'T005432', 'Зарагдсан', '2026-02-20', '88112233', 'Хувиараа', 'Сарнай Д'],
@@ -566,7 +578,11 @@ def download_template():
 @login_required
 def admin():
     conn = get_db()
-    contracts = conn.execute('SELECT * FROM contracts ORDER BY dd').fetchall()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT * FROM contracts ORDER BY dd')
+    contracts = cur.fetchall()
+    cur.close()
+    conn.close()
 
     total   = len(contracts)
     on_time = sum(1 for c in contracts if c['time_category'] == 'Хугацаандаа')
@@ -582,7 +598,6 @@ def admin():
         r = c['first_inspection'] or 'Тодорхойгүй'
         by_result[r] = by_result.get(r, 0) + 1
 
-    conn.close()
     return render_template('admin.html',
                            contracts=contracts,
                            total=total, on_time=on_time, overdue=overdue,
@@ -601,18 +616,16 @@ def dashboard():
     MONTHS_MN = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар',
                  '7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар']
 
-    # ── Parameters ────────────────────────────────────────────
-    period    = request.args.get('period', 'month')   # day|month|quarter|halfyear|year|custom
-    sel_month = request.args.get('sel_month', '')     # YYYY-MM
-    sel_q     = request.args.get('sel_q', '')         # YYYY-Q1/Q2/Q3/Q4
-    sel_half  = request.args.get('sel_half', '')      # YYYY-H1 / YYYY-H2
-    sel_year  = request.args.get('sel_year', '')      # YYYY
+    period    = request.args.get('period', 'month')
+    sel_month = request.args.get('sel_month', '')
+    sel_q     = request.args.get('sel_q', '')
+    sel_half  = request.args.get('sel_half', '')
+    sel_year  = request.args.get('sel_year', '')
     dept      = request.args.get('dept', '')
     employee  = request.args.get('employee', '')
     date_from = request.args.get('date_from', '')
     date_to   = request.args.get('date_to', '')
 
-    # ── Resolve date range ────────────────────────────────────
     if period == 'day':
         d_from = today.isoformat()
         d_to   = today.isoformat()
@@ -680,24 +693,23 @@ def dashboard():
         d_to   = today.isoformat()
         period = 'month'
 
-    # ── Build base query ──────────────────────────────────────
     conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    # All employees for dropdown
-    all_employees = [r[0] for r in conn.execute(
-        "SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by"
-    ).fetchall()]
+    cur.execute("SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by")
+    all_employees = [r['issued_by'] for r in cur.fetchall()]
 
-    base_cond   = "WHERE DATE(pos_issue_date) BETWEEN ? AND ?"
+    base_cond   = "WHERE pos_issue_date BETWEEN %s AND %s"
     base_params = [d_from, d_to]
     if dept:
-        base_cond  += " AND department = ?"
+        base_cond  += " AND department = %s"
         base_params.append(dept)
     if employee:
-        base_cond  += " AND issued_by = ?"
+        base_cond  += " AND issued_by = %s"
         base_params.append(employee)
 
-    all_rows = conn.execute(f"SELECT * FROM contracts {base_cond}", base_params).fetchall()
+    cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
+    all_rows = cur.fetchall()
     inactive_count = sum(1 for r in all_rows if r['is_inactive'] == '1')
     rows = [r for r in all_rows if r['is_inactive'] != '1']
 
@@ -716,7 +728,6 @@ def dashboard():
     COMPLETE_VALS = {'Бүрэн', 'Салбар дээр архивлагдсан/бүрэн'}
     complete      = sum(1 for r in rows if r['first_inspection'] in COMPLETE_VALS)
     returned      = sum(1 for r in rows if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5'])
-    # Not-received contracts + their overdue days calculated up to today
     not_received_rows = [r for r in rows if not r['received_date']]
     not_received = len(not_received_rows)
 
@@ -735,7 +746,6 @@ def dashboard():
     nr_max_overdue = max(nr_overdue_days) if nr_overdue_days else 0
 
     incomplete = total - complete
-
     complete_pct = round(complete / total * 100, 1) if total else 0
     returned_pct = round(returned / total * 100, 1) if total else 0
 
@@ -757,7 +767,6 @@ def dashboard():
         if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5']:
             dept_stats[d]['returned'] += 1
 
-    # ── Monthly trend (last 6 months) ────────────────────────
     trend = []
     for i in range(5, -1, -1):
         month = today.month - i
@@ -766,17 +775,18 @@ def dashboard():
             month += 12; year -= 1
         m_from = dt_date(year, month, 1).isoformat()
         m_to   = dt_date(year, month, calendar.monthrange(year, month)[1]).isoformat()
-        t_params = [m_from, m_to]
-        t_cond   = "WHERE DATE(pos_issue_date) BETWEEN ? AND ?"
-        t_total  = conn.execute(f"SELECT COUNT(*) FROM contracts {t_cond}", t_params).fetchone()[0]
-        t_on     = conn.execute(f"SELECT COUNT(*) FROM contracts {t_cond} AND time_category='Хугацаандаа'", t_params).fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM contracts WHERE pos_issue_date BETWEEN %s AND %s", [m_from, m_to])
+        t_total = cur.fetchone()['count']
+        cur.execute("SELECT COUNT(*) FROM contracts WHERE pos_issue_date BETWEEN %s AND %s AND time_category='Хугацаандаа'", [m_from, m_to])
+        t_on = cur.fetchone()['count']
         trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_total - t_on})
 
-    # ── Build year options for selectors ─────────────────────
-    min_year_row = conn.execute("SELECT MIN(substr(pos_issue_date,1,4)) FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''").fetchone()[0]
-    min_year     = int(min_year_row) if min_year_row else today.year
-    years        = list(range(today.year, min_year - 1, -1))
+    cur.execute("SELECT MIN(SUBSTRING(pos_issue_date, 1, 4)) AS min_year FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
+    min_year_row = cur.fetchone()['min_year']
+    min_year = int(min_year_row) if min_year_row else today.year
+    years = list(range(today.year, min_year - 1, -1))
 
+    cur.close()
     conn.close()
 
     return render_template('dashboard.html',
@@ -805,14 +815,16 @@ def dashboard():
 @login_required
 def export():
     conn = get_db()
-    contracts = conn.execute('SELECT * FROM contracts ORDER BY dd').fetchall()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT * FROM contracts ORDER BY dd')
+    contracts = cur.fetchall()
+    cur.close()
     conn.close()
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Гэрээ бүртгэл'
 
-    # Styles
     header_font    = Font(name='Calibri', bold=True, color='FFFFFF', size=11)
     header_fill    = PatternFill('solid', fgColor='2C3E50')
     header_align   = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -832,17 +844,16 @@ def export():
         'Эхний хяналтаарх үр дүн', 'Тайлбар',
         'Буцаасан огноо', 'Сүүлийн хяналтаар хүлээн авсан огноо'
     ]
-
     col_widths = [6, 28, 18, 18, 18, 18, 16, 20, 24, 18,
                   22, 22, 20, 20, 30, 30, 18, 30]
 
     ws.row_dimensions[1].height = 36
     for i, (h, w) in enumerate(zip(headers, col_widths), start=1):
         cell = ws.cell(row=1, column=i, value=h)
-        cell.font   = header_font
-        cell.fill   = header_fill
+        cell.font      = header_font
+        cell.fill      = header_fill
         cell.alignment = header_align
-        cell.border = border
+        cell.border    = border
         ws.column_dimensions[get_column_letter(i)].width = w
 
     for r_idx, row in enumerate(contracts, start=2):
@@ -863,11 +874,9 @@ def export():
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
             cell.border    = border
             cell.alignment = wrap_align if c_idx in (2, 15, 16) else center_align
-            # Highlight time category column
             if c_idx == 14:
                 cell.fill = row_fill
 
-    # Freeze header row
     ws.freeze_panes = 'A2'
 
     output = BytesIO()
@@ -886,18 +895,21 @@ def export():
 # -----------------------------------------------------------
 @app.route('/api/autocomplete')
 def autocomplete():
-    field = request.args.get('field', '')
-    q     = request.args.get('q', '')
+    field   = request.args.get('field', '')
+    q       = request.args.get('q', '')
     allowed = {'merchant_name', 'merchant_type', 'issued_by', 'merchant_number', 'terminal_number'}
     if field not in allowed:
         return jsonify([])
     conn = get_db()
-    rows = conn.execute(
-        f"SELECT DISTINCT {field} FROM contracts WHERE {field} LIKE ? ORDER BY {field} LIMIT 10",
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        f"SELECT DISTINCT {field} FROM contracts WHERE {field} LIKE %s ORDER BY {field} LIMIT 10",
         (f'%{q}%',)
-    ).fetchall()
+    )
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
-    return jsonify([r[0] for r in rows if r[0]])
+    return jsonify([r[field] for r in rows if r[field]])
 
 
 init_db()

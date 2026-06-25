@@ -46,7 +46,10 @@ INSPECTION_RESULTS = [
 # Database helpers
 # -----------------------------------------------------------
 def get_db():
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''))
+    db_url = os.environ.get('DATABASE_URL', '')
+    if 'sslmode' not in db_url:
+        db_url += '?sslmode=require' if '?' not in db_url else '&sslmode=require'
+    conn = psycopg2.connect(db_url)
     return conn
 
 

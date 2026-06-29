@@ -80,7 +80,7 @@ def init_db():
     ''')
     conn.commit()
     for new_col in ['status', 'return_date_2', 'return_date_3', 'return_date_4', 'return_date_5',
-                    'is_inactive', 'inactive_reason']:
+                    'is_inactive', 'inactive_reason', 'modified_by']:
         cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
     cur.close()
@@ -328,7 +328,8 @@ def edit(cid):
                 overdue_days=%s, time_category=%s,
                 first_inspection=%s, description=%s,
                 return_date=%s, return_date_2=%s, return_date_3=%s, return_date_4=%s, return_date_5=%s,
-                last_inspection_date=%s, is_inactive=%s, inactive_reason=%s
+                last_inspection_date=%s, is_inactive=%s, inactive_reason=%s,
+                modified_by=%s
             WHERE id=%s
         ''', (merchant_name, pos_serial, merchant_number, terminal_number,
               status, pos_issue_date, phone, merchant_type, issued_by,
@@ -336,7 +337,8 @@ def edit(cid):
               overdue_days, time_category,
               first_inspection, description,
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
-              last_inspection_date, is_inactive, inactive_reason, cid))
+              last_inspection_date, is_inactive, inactive_reason,
+              session.get('user', ''), cid))
         conn.commit()
         cur.close()
         conn.close()

@@ -226,7 +226,7 @@ def add():
         if terminal_number:
             cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
             if cur.fetchone():
-                flash('Терминалын дугаар давхацсан!', 'error')
+                flash(f'Терминалын дугаар давхацсан: {terminal_number}', 'error')
                 cur.close()
                 conn.close()
                 return redirect(url_for('add'))
@@ -312,7 +312,7 @@ def edit(cid):
         if terminal_number:
             cur.execute('SELECT id FROM contracts WHERE terminal_number = %s AND id != %s', (terminal_number, cid))
             if cur.fetchone():
-                flash('Терминалын дугаар давхацсан!', 'error')
+                flash(f'Терминалын дугаар давхацсан: {terminal_number}', 'error')
                 cur.close()
                 conn.close()
                 return render_template('edit.html', c=contract,

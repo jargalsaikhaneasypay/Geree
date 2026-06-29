@@ -119,6 +119,7 @@
           <th>Буцаасан огноо</th>
           <th>Сүүлийн хяналт</th>
           <th>Зассан</th>
+          <th>Scanned</th>
           <th class="col-actions">Үйлдэл</th>
         </tr>
       </thead>
@@ -171,6 +172,7 @@
           </td>
           <td class="text-center">{{ c.last_inspection_date or '—' }}</td>
           <td class="text-center">{{ (c.modified_by or '').split('@')[0] or '—' }}</td>
+          <td class="text-center">{% if c.scanned == '1' %}✓{% else %}—{% endif %}</td>
           <td class="text-center">
             <div class="action-btns">
               <a href="{{ url_for('edit', cid=c.id) }}" class="action-btn action-btn-edit" title="Засах">

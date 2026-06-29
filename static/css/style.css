@@ -441,6 +441,16 @@ html, body { height: 100%; background: var(--bg); }
 .form-select { cursor: pointer; }
 .form-textarea { resize: vertical; min-height: 80px; }
 .form-hint { font-size: 11.5px; color: var(--text-muted); }
+.xls-hint { display:inline-flex; align-items:center; gap:4px; margin-top:3px; }
+.xls-hint code {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
 
 .calc-field {
   padding: 9px 12px; border-radius: var(--radius-sm);

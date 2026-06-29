@@ -28,12 +28,14 @@
           <input type="text" id="merchant_name" name="merchant_name" class="form-input autocomplete-input"
                  data-field="merchant_name" placeholder="Мерчантын нэр оруулах..." required autocomplete="off" />
           <ul class="autocomplete-list" id="ac_merchant_name"></ul>
+          <span class="form-hint xls-hint">Excel: <code>Посын мерчантын нэр</code></span>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="pos_serial">Посын сериал</label>
           <input type="text" id="pos_serial" name="pos_serial" class="form-input"
                  placeholder="Сериал дугаар..." />
+          <span class="form-hint xls-hint">Excel: <code>Посын сериал</code></span>
         </div>
 
         <div class="form-group">
@@ -41,6 +43,7 @@
           <input type="text" id="merchant_number" name="merchant_number" class="form-input autocomplete-input"
                  data-field="merchant_number" placeholder="Дугаар..." autocomplete="off" />
           <ul class="autocomplete-list" id="ac_merchant_number"></ul>
+          <span class="form-hint xls-hint">Excel: <code>Мерчантын дугаар</code></span>
         </div>
 
         <div class="form-group">
@@ -48,6 +51,7 @@
           <input type="text" id="terminal_number" name="terminal_number" class="form-input autocomplete-input"
                  data-field="terminal_number" placeholder="Терминал дугаар..." autocomplete="off" />
           <ul class="autocomplete-list" id="ac_terminal_number"></ul>
+          <span class="form-hint xls-hint">Excel: <code>Терминалын дугаар</code></span>
         </div>
 
         <div class="form-group">
@@ -58,16 +62,19 @@
               <option value="{{ s }}">{{ s }}</option>
             {% endfor %}
           </select>
+          <span class="form-hint xls-hint">Excel: <code>Төлөв</code></span>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="pos_issue_date">Пос гаргасан огноо</label>
           <input type="date" id="pos_issue_date" name="pos_issue_date" class="form-input" />
+          <span class="form-hint xls-hint">Excel: <code>Пос гаргасан огноо</code></span>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="phone">Утас</label>
           <input type="text" id="phone" name="phone" class="form-input" placeholder="Утасны дугаар..." />
+          <span class="form-hint xls-hint">Excel: <code>Утас</code></span>
         </div>
 
         <div class="form-group">
@@ -75,6 +82,7 @@
           <input type="text" id="merchant_type" name="merchant_type" class="form-input autocomplete-input"
                  data-field="merchant_type" placeholder="Хэлбэр..." autocomplete="off" />
           <ul class="autocomplete-list" id="ac_merchant_type"></ul>
+          <span class="form-hint xls-hint">Excel: <code>Мерчантын хэлбэр</code></span>
         </div>
 
         <div class="form-group">
@@ -82,6 +90,7 @@
           <input type="text" id="issued_by" name="issued_by" class="form-input autocomplete-input"
                  data-field="issued_by" placeholder="Ажилтны нэр..." autocomplete="off" />
           <ul class="autocomplete-list" id="ac_issued_by"></ul>
+          <span class="form-hint xls-hint">Excel: <code>Мерчант гаргасан ажилтан</code></span>
         </div>
       </div>
     </div>

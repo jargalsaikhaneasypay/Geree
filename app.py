@@ -523,13 +523,12 @@ def import_excel():
         conn.close()
 
         if imported:
-            msg = f'{imported} бүртгэл амжилттай импортлогдлоо!'
-            if skipped:
-                msg += f'  {skipped} хоосон мөр орхигдлоо.'
-            if err_rows:
-                msg += f'  {len(err_rows)} мөр алдаатай байлаа.'
-            flash(msg, 'success')
-        else:
+            flash(f'{imported} бүртгэл амжилттай импортлогдлоо!', 'success')
+
+        for err in err_rows:
+            flash(err, 'error')
+
+        if not imported and not err_rows:
             flash('Импортлох мэдээлэл олдсонгүй. Файлын формат зөв эсэхийг шалгана уу.', 'error')
 
     except Exception as e:

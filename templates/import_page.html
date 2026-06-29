@@ -74,11 +74,11 @@
         <thead>
           <tr style="background:var(--bg-alt,#f8fafc);border-bottom:2px solid var(--border)">
             <th style="text-align:left;padding:12px 20px;font-weight:600;color:var(--text-muted);width:38%">
-              Excel баганы нэр
-            </th>
-            <th style="width:5%;text-align:center;padding:12px 8px;color:var(--text-muted)">→</th>
-            <th style="text-align:left;padding:12px 20px;font-weight:600;color:var(--text-muted)">
               Системийн талбар
+            </th>
+            <th style="width:5%;text-align:center;padding:12px 8px;color:var(--text-muted)">←</th>
+            <th style="text-align:left;padding:12px 20px;font-weight:600;color:var(--text-muted)">
+              Excel баганы нэр
             </th>
             <th style="width:40px"></th>
           </tr>
@@ -169,10 +169,15 @@ const ICON_SKIP = `<svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-
   style="width:16px;height:16px">
   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-const OPTIONS_HTML = Object.entries(DB_FIELDS)
-  .map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+// Reverse HEADER_MAP: db_field -> set of lowercase excel header keys
+const FIELD_TO_KEYS = {};
+for (const [h, f] of Object.entries(HEADER_MAP)) {
+  if (!FIELD_TO_KEYS[f]) FIELD_TO_KEYS[f] = new Set();
+  FIELD_TO_KEYS[f].add(h);
+}
 
 let _file = null;
+let _headers = [];
 
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -196,6 +201,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         const cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c })];
         headers.push(cell ? String(cell.v) : '');
       }
+      _headers = headers;
       buildMapping(headers, file.name);
     } catch(err) { showErr('Файл уншихад алдаа: ' + err.message); }
   };
@@ -213,31 +219,42 @@ function buildMapping(headers, filename) {
   const tbody = document.getElementById('mappingBody');
   tbody.innerHTML = '';
 
+  // Dropdown options: Excel columns from the file
+  const excelOptions = ['<option value="">— Оруулахгүй —</option>'];
   headers.forEach((h, idx) => {
-    const key  = (h || '').toLowerCase().trim();
-    const auto = HEADER_MAP[key] || '';
-    if (auto === 'dd_col') return;
+    excelOptions.push(`<option value="${idx}">${h || '(хоосон ' + idx + ')'}</option>`);
+  });
+  const optHtml = excelOptions.join('');
+
+  // One row per DB field
+  Object.entries(DB_FIELDS).forEach(([field, label]) => {
+    if (!field) return;
+
+    // Find which Excel column auto-matches this DB field
+    const keys = FIELD_TO_KEYS[field] || new Set();
+    let autoIdx = '';
+    for (let i = 0; i < headers.length; i++) {
+      if (keys.has((headers[i] || '').toLowerCase().trim())) { autoIdx = String(i); break; }
+    }
 
     const tr = document.createElement('tr');
     tr.style.cssText = 'border-bottom:1px solid var(--border);transition:opacity .15s';
     tr.innerHTML = `
-      <td style="padding:11px 20px;font-size:13px;font-family:monospace;color:var(--text)">
-        ${h || '<em style="color:var(--text-muted)">(хоосон)</em>'}
-      </td>
-      <td style="text-align:center;padding:11px 8px;color:var(--text-muted);font-size:18px">→</td>
+      <td style="padding:11px 20px;font-weight:500;color:var(--text)">${label}</td>
+      <td style="text-align:center;padding:11px 8px;color:var(--text-muted);font-size:18px">←</td>
       <td style="padding:8px 20px">
-        <select data-idx="${idx}"
+        <select data-field="${field}"
           style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;
                  font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);cursor:pointer"
           onchange="onRowChange(this)">
-          ${OPTIONS_HTML}
+          ${optHtml}
         </select>
       </td>
-      <td style="padding:11px 12px;text-align:center;width:40px" id="icon_${idx}"></td>
+      <td style="padding:11px 12px;text-align:center;width:40px" id="icon_${field}"></td>
     `;
     tbody.appendChild(tr);
     const sel = tr.querySelector('select');
-    sel.value = auto;
+    sel.value = autoIdx;
     refreshRow(sel);
   });
 
@@ -250,15 +267,15 @@ function onRowChange(sel) { refreshRow(sel); updateSummary(); }
 
 function refreshRow(sel) {
   const tr   = sel.closest('tr');
-  const icon = document.getElementById('icon_' + sel.dataset.idx);
-  if (sel.value) { tr.style.opacity = '1';    icon.innerHTML = ICON_OK;   }
-  else           { tr.style.opacity = '0.45'; icon.innerHTML = ICON_SKIP; }
+  const icon = document.getElementById('icon_' + sel.dataset.field);
+  if (sel.value !== '') { tr.style.opacity = '1';    icon.innerHTML = ICON_OK;   }
+  else                  { tr.style.opacity = '0.45'; icon.innerHTML = ICON_SKIP; }
 }
 
 function updateSummary() {
   const sels = document.querySelectorAll('#mappingBody select');
   let matched = 0, skipped = 0;
-  sels.forEach(s => s.value ? matched++ : skipped++);
+  sels.forEach(s => s.value !== '' ? matched++ : skipped++);
   document.getElementById('summaryChips').innerHTML = `
     <span style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#166534;
                  padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600">
@@ -284,7 +301,7 @@ function submitImport() {
   if (!_file) return;
   const mapping = {};
   document.querySelectorAll('#mappingBody select').forEach(sel => {
-    if (sel.value) mapping[sel.dataset.idx] = sel.value;
+    if (sel.value !== '') mapping[sel.value] = sel.dataset.field; // {col_idx: db_field}
   });
   const dt = new DataTransfer();
   dt.items.add(_file);

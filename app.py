@@ -377,26 +377,37 @@ def delete(cid):
 # -----------------------------------------------------------
 
 HEADER_MAP = {
-    'посын мерчантын нэр': 'merchant_name',
-    'мерчантын нэр':       'merchant_name',
-    'нэр':                 'merchant_name',
-    'посын сериал':        'pos_serial',
-    'сериал':              'pos_serial',
-    'мерчантын дугаар':    'merchant_number',
-    'терминалын дугаар':   'terminal_number',
-    'терминал':            'terminal_number',
-    'пос гаргасан огноо':  'pos_issue_date',
-    'огноо':               'pos_issue_date',
-    'утас':                'phone',
-    'мерчантын хэлбэр':    'merchant_type',
-    'хэлбэр':              'merchant_type',
-    'мерчант гаргасан ажилтан': 'issued_by',
-    'ажилтан':             'issued_by',
-    'төлөв':               'status',
-    'гэрээний төлөв':      'status',
-    'д/д':                 'dd_col',
-    'дугаар':              'dd_col',
-    '№':                   'dd_col',
+    # identity
+    'д/д':                              'dd_col',
+    'дугаар':                           'dd_col',
+    '№':                                'dd_col',
+    # section 1
+    'посын мерчантын нэр':              'merchant_name',
+    'мерчантын нэр':                    'merchant_name',
+    'нэр':                              'merchant_name',
+    'посын сериал':                     'pos_serial',
+    'сериал':                           'pos_serial',
+    'мерчантын дугаар':                 'merchant_number',
+    'терминалын дугаар':                'terminal_number',
+    'терминал':                         'terminal_number',
+    'төлөв':                            'status',
+    'гэрээний төлөв':                   'status',
+    'пос гаргасан огноо':               'pos_issue_date',
+    'утас':                             'phone',
+    'мерчантын хэлбэр':                 'merchant_type',
+    'хэлбэр':                           'merchant_type',
+    'мерчант гаргасан ажилтан':         'issued_by',
+    'ажилтан':                          'issued_by',
+    # section 2
+    'хэлтэс':                           'department',
+    'гэрээ ирсэн байх ёстой огноо':     'expected_date',
+    'гэрээ хүлээн авсан огноо':         'received_date',
+    'хугацаа хэтэрсэн хоног':          'overdue_days',
+    'хугацааны ангилал':                'time_category',
+    'эхний хяналтаарх үр дүн':         'first_inspection',
+    'тайлбар':                          'description',
+    'буцаасан огноо':                   'return_date',
+    'сүүлийн хяналтаар хүлээн авсан огноо': 'last_inspection_date',
 }
 
 POSITIONAL_MAP = {
@@ -488,15 +499,41 @@ def import_excel():
             if not any(v for v in row if v not in (None, '')):
                 continue
             try:
-                merchant_name   = get_field(row, 'merchant_name')
-                pos_serial      = get_field(row, 'pos_serial')
-                merchant_number = get_field(row, 'merchant_number')
-                terminal_number = get_field(row, 'terminal_number')
-                status          = get_field(row, 'status')
-                pos_issue_date  = get_field(row, 'pos_issue_date')
-                phone           = get_field(row, 'phone')
-                merchant_type   = get_field(row, 'merchant_type')
-                issued_by       = get_field(row, 'issued_by')
+                merchant_name      = get_field(row, 'merchant_name')
+                pos_serial         = get_field(row, 'pos_serial')
+                merchant_number    = get_field(row, 'merchant_number')
+                terminal_number    = get_field(row, 'terminal_number')
+                status             = get_field(row, 'status')
+                pos_issue_date     = get_field(row, 'pos_issue_date')
+                phone              = get_field(row, 'phone')
+                merchant_type      = get_field(row, 'merchant_type')
+                issued_by          = get_field(row, 'issued_by')
+                department         = get_field(row, 'department')
+                expected_date      = get_field(row, 'expected_date')
+                received_date      = get_field(row, 'received_date')
+                first_inspection   = get_field(row, 'first_inspection')
+                description        = get_field(row, 'description')
+                return_date        = get_field(row, 'return_date')
+                last_inspection_date = get_field(row, 'last_inspection_date')
+
+                # compute overdue_days and time_category from dates when present
+                overdue_days_raw  = get_field(row, 'overdue_days')
+                time_category_raw = get_field(row, 'time_category')
+
+                if expected_date and received_date:
+                    try:
+                        diff = (date.fromisoformat(received_date) - date.fromisoformat(expected_date)).days
+                        overdue_days  = diff
+                        time_category = 'Хугацаандаа' if diff <= 0 else 'Хугацаа хэтэрсэн'
+                    except Exception:
+                        overdue_days  = overdue_days_raw or None
+                        time_category = time_category_raw or 'Хугацаа хэтэрсэн'
+                elif expected_date and not received_date:
+                    overdue_days  = overdue_days_raw or None
+                    time_category = time_category_raw or 'Хугацаа хэтэрсэн'
+                else:
+                    overdue_days  = overdue_days_raw or None
+                    time_category = time_category_raw or 'Хугацаа хэтэрсэн'
 
                 if not merchant_name:
                     skipped += 1
@@ -512,10 +549,14 @@ def import_excel():
                 cur.execute('''
                     INSERT INTO contracts
                     (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                     status, pos_issue_date, phone, merchant_type, issued_by, time_category)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     status, pos_issue_date, phone, merchant_type, issued_by,
+                     department, expected_date, received_date, overdue_days, time_category,
+                     first_inspection, description, return_date, last_inspection_date)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                      status, pos_issue_date, phone, merchant_type, issued_by, 'Хугацаа хэтэрсэн'))
+                      status, pos_issue_date, phone, merchant_type, issued_by,
+                      department, expected_date, received_date, overdue_days, time_category,
+                      first_inspection, description, return_date, last_inspection_date))
                 dd       += 1
                 imported += 1
 

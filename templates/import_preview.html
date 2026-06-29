@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Импортын урьдчилсан харагдац – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Баганын харгалзаа шалгах</h1>{% endblock %}
+
+{% block content %}
+<div style="max-width:780px;margin:0 auto">
+
+  <div class="card" style="padding:28px 32px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           style="width:22px;height:22px;color:var(--primary);flex-shrink:0">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <div>
+        <div style="font-weight:700;font-size:15px">{{ filename }}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">
+          Excel-ийн баганууд системийн талбартай харгалзуулав.
+          Тохирсон баганууд импортлогдоно.
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary chips -->
+    {% set matched = preview | selectattr('db_field') | list | length %}
+    {% set unmatched = preview | rejectattr('db_field') | list | length %}
+    <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#166534;
+                   padding:5px 12px;border-radius:20px;font-size:13px;font-weight:600">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg>
+        {{ matched }} багана тохирсон
+      </span>
+      {% if unmatched %}
+      <span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;color:#64748b;
+                   padding:5px 12px;border-radius:20px;font-size:13px;font-weight:600">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             style="width:14px;height:14px">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        {{ unmatched }} багана тохироогүй (импортлогдохгүй)
+      </span>
+      {% endif %}
+    </div>
+
+    <!-- Mapping table -->
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border)">
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:var(--text-muted);
+                     width:46%">Excel баганы нэр</th>
+          <th style="text-align:center;padding:10px 8px;font-weight:600;color:var(--text-muted);
+                     width:8%"></th>
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:var(--text-muted)">
+            Системийн талбар</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in preview %}
+        <tr style="border-bottom:1px solid var(--border);
+                   {% if not row.db_field %}opacity:0.55{% endif %}">
+          <td style="padding:10px 12px;font-family:monospace;font-size:13px">
+            {{ row.excel_col or '(хоосон)' }}
+          </td>
+          <td style="text-align:center;padding:10px 8px">
+            {% if row.db_field %}
+              <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"
+                   style="width:16px;height:16px">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            {% else %}
+              <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
+                   style="width:16px;height:16px">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            {% endif %}
+          </td>
+          <td style="padding:10px 12px;font-weight:{% if row.db_field %}500{% else %}400{% endif %};
+                     color:{% if row.db_field %}var(--text){% else %}var(--text-muted){% endif %}">
+            {% if row.db_field %}
+              {{ row.label }}
+            {% else %}
+              <em>Тохироогүй — импортлогдохгүй</em>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;justify-content:flex-end;gap:12px">
+    <a href="{{ url_for('import_page') }}" class="btn btn-ghost">Цуцлах</a>
+    <form method="POST" action="{{ url_for('import_confirm') }}" style="margin:0">
+      <button type="submit" class="btn btn-primary btn-lg"
+              {% if matched == 0 %}disabled{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             style="width:17px;height:17px;margin-right:8px">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Импортлох
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

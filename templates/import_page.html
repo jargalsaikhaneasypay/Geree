@@ -1,289 +1,296 @@
 {% extends 'base.html' %}
 {% block title %}Excel оруулах – Гэрээ бүртгэл{% endblock %}
-{% block page_title %}<h1 class="page-title">Excel файл оруулах</h1>{% endblock %}
+{% block page_title %}<h1 class="page-title">Excel оруулах</h1>{% endblock %}
 
 {% block content %}
-<div class="form-layout">
+<div style="max-width:900px;margin:0 auto">
 
-  <!-- Info card: column format -->
-  <div class="card form-card">
-    <div class="form-section-header">
-      <div class="section-num" style="background:#1A7F4F">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <div>
-        <h2 class="section-title">Excel файлын формат</h2>
-        <p class="section-sub">Дараах баганатай байх шаардлагатай. Гарчгийн мөр заавал байх ёстой.</p>
-      </div>
+  <!-- Step 1: file picker -->
+  <div class="card" id="uploadCard" style="padding:52px 40px;text-align:center">
+    <div style="width:64px;height:64px;border-radius:16px;background:var(--primary-light);
+                display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.8"
+           style="width:32px;height:32px">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
     </div>
-
-    <div class="col-format-table">
-      <table class="data-table" style="min-width:0">
-        <thead>
-          <tr>
-            <th style="width:60px">Багана</th>
-            <th>Гарчиг (Монгол)</th>
-            <th>Жишээ утга</th>
-            <th>Тайлбар</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="text-center fw-600 mono">A</td>
-            <td class="fw-500">Д/д</td>
-            <td class="mono text-muted">1</td>
-            <td class="text-muted" style="font-size:12px">Автоматаар орхигддог</td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">B</td>
-            <td class="fw-500">Посын мерчантын нэр <span class="req">*</span></td>
-            <td class="mono text-muted">Дэлгүүр ХХК</td>
-            <td class="text-muted" style="font-size:12px">Заавал байх ёстой</td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">C</td>
-            <td class="fw-500">Посын сериал</td>
-            <td class="mono text-muted">SN123456</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">D</td>
-            <td class="fw-500">Мерчантын дугаар</td>
-            <td class="mono text-muted">M001234</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">E</td>
-            <td class="fw-500">Терминалын дугаар</td>
-            <td class="mono text-muted">T009876</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">F</td>
-            <td class="fw-500">Пос гаргасан огноо</td>
-            <td class="mono text-muted">2026-01-15</td>
-            <td class="text-muted" style="font-size:12px">YYYY-MM-DD буюу Excel огноо</td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">G</td>
-            <td class="fw-500">Утас</td>
-            <td class="mono text-muted">99001122</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">H</td>
-            <td class="fw-500">Мерчантын хэлбэр</td>
-            <td class="mono text-muted">Бизнес</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-          <tr>
-            <td class="text-center fw-600 mono">I</td>
-            <td class="fw-500">Мерчант гаргасан ажилтан</td>
-            <td class="mono text-muted">Болд Б</td>
-            <td class="text-muted" style="font-size:12px"></td>
-          </tr>
-        </tbody>
-      </table>
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px">Excel файл сонгох</div>
+    <div style="color:var(--text-muted);font-size:14px;margin-bottom:28px">
+      Файл сонгосны дараа баганын харгалзааг тохируулна
     </div>
-
+    <label for="fileInput" class="btn btn-primary btn-lg"
+           style="cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           style="width:17px;height:17px">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Файл сонгох (.xlsx)
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx" style="display:none">
     <div style="margin-top:16px">
-      <a href="{{ url_for('download_template') }}" class="btn btn-success">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:8px">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Загвар Excel татах (merchant_template.xlsx)
+      <a href="{{ url_for('download_template') }}"
+         style="font-size:13px;color:var(--primary);text-decoration:none">
+        Загвар татах
       </a>
     </div>
+    <div id="fileError"
+         style="display:none;margin-top:14px;color:#ef4444;font-size:13px;font-weight:500"></div>
   </div>
 
-  <!-- Upload card -->
-  <div class="card form-card">
-    <div class="form-section-header">
-      <div class="section-num">2</div>
-      <div>
-        <h2 class="section-title">Файл оруулах</h2>
-        <p class="section-sub">Excel файлаа сонгож дараах хэсэгт чирч тавих эсвэл товч дарж сонгоно уу</p>
-      </div>
-    </div>
+  <!-- Step 2: mapping UI (hidden until file chosen) -->
+  <div id="mappingCard" style="display:none">
 
-    <form method="POST" action="{{ url_for('import_excel') }}" enctype="multipart/form-data" id="importForm">
-      <!-- Drag & drop zone -->
-      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-        <div class="drop-zone-icon" id="dzIcon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-        </div>
-        <p class="drop-zone-title" id="dzTitle">Файлаа энд чирж тавих буюу дарж сонгоно уу</p>
-        <p class="drop-zone-sub" id="dzSub">Зөвхөн <strong>.xlsx</strong> файл (Excel 2007+)</p>
-      </div>
-
-      <input type="file" id="fileInput" name="file" accept=".xlsx" style="display:none"
-             onchange="onFileSelect(this)" />
-
-      <!-- File info -->
-      <div class="file-info" id="fileInfo" style="display:none">
-        <div class="file-info-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- File info bar -->
+    <div class="card"
+         style="padding:16px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:38px;height:38px;background:var(--primary-light);border-radius:9px;
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"
+               style="width:18px;height:18px">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </div>
-        <div class="file-info-text">
-          <span class="file-info-name" id="fileName"></span>
-          <span class="file-info-size" id="fileSize"></span>
+        <div>
+          <div style="font-weight:700;font-size:14px" id="selectedFilename"></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+            Баганын харгалзааг шалгаж тохируулна уу
+          </div>
         </div>
-        <button type="button" class="file-info-remove" onclick="removeFile()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
       </div>
+      <button onclick="resetUI()" class="btn btn-ghost" style="font-size:13px">Өөр файл</button>
+    </div>
 
-      <div class="form-actions" style="margin-top:20px">
-        <a href="{{ url_for('index') }}" class="btn btn-ghost">Болих</a>
-        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Excel оруулах
-        </button>
-      </div>
-    </form>
-  </div>
+    <!-- Summary chips -->
+    <div id="summaryChips" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
 
-  <!-- Tips -->
-  <div class="card form-card" style="background:#FAFBFD">
-    <h3 style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:12px">Зөвлөмж</h3>
-    <ul class="tip-list">
-      <li>Багануудын гарчиг дээрх Монгол үгийг зөв бичсэн байх шаардлагатай</li>
-      <li>Гарчгийн мөр байхгүй бол A→I баганын дарааллаар уншигдана</li>
-      <li>Огноог <strong>YYYY-MM-DD</strong> форматаар оруулна уу (жишээ: 2026-01-15)</li>
-      <li>Посын мерчантын нэр хоосон мөрүүд орхигдоно</li>
-      <li>Импортлогдсон бүртгэлийг дараа нь засах боломжтой</li>
-    </ul>
+    <!-- Mapping table -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead>
+          <tr style="background:var(--bg-alt,#f8fafc);border-bottom:2px solid var(--border)">
+            <th style="text-align:left;padding:12px 20px;font-weight:600;color:var(--text-muted);width:38%">
+              Excel баганы нэр
+            </th>
+            <th style="width:5%;text-align:center;padding:12px 8px;color:var(--text-muted)">→</th>
+            <th style="text-align:left;padding:12px 20px;font-weight:600;color:var(--text-muted)">
+              Системийн талбар
+            </th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="mappingBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;justify-content:flex-end;gap:12px">
+      <button onclick="resetUI()" class="btn btn-ghost">Цуцлах</button>
+      <button onclick="submitImport()" class="btn btn-primary btn-lg" id="importBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             style="width:16px;height:16px;margin-right:8px">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Импортлох
+      </button>
+    </div>
   </div>
 
 </div>
 
+<!-- Hidden submit form -->
+<form id="importForm" method="POST" action="{{ url_for('import_confirm') }}"
+      enctype="multipart/form-data" style="display:none">
+  <input type="file" name="file" id="hiddenFile">
+  <input type="hidden" name="mapping" id="mappingInput">
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-const dropZone   = document.getElementById('dropZone');
-const fileInput  = document.getElementById('fileInput');
-const fileInfo   = document.getElementById('fileInfo');
-const submitBtn  = document.getElementById('submitBtn');
+const DB_FIELDS = {
+  '':                     '— Оруулахгүй —',
+  'merchant_name':        'Посын мерчантын нэр',
+  'pos_serial':           'Посын сериал',
+  'merchant_number':      'Мерчантын дугаар',
+  'terminal_number':      'Терминалын дугаар',
+  'status':               'Төлөв',
+  'pos_issue_date':       'Пос гаргасан огноо',
+  'phone':                'Утас',
+  'merchant_type':        'Мерчантын хэлбэр',
+  'issued_by':            'Мерчант гаргасан ажилтан',
+  'department':           'Хэлтэс',
+  'expected_date':        'Гэрээ ирсэн байх ёстой огноо',
+  'received_date':        'Гэрээ хүлээн авсан огноо',
+  'overdue_days':         'Хугацаа хэтэрсэн хоног',
+  'time_category':        'Хугацааны ангилал',
+  'first_inspection':     'Эхний хяналтаарх үр дүн',
+  'description':          'Тайлбар',
+  'return_date':          'Буцаасан огноо',
+  'last_inspection_date': 'Сүүлийн хяналтаар хүлээн авсан огноо',
+};
 
-// Drag events
-dropZone.addEventListener('dragover', function(e) {
-  e.preventDefault();
-  dropZone.classList.add('drop-zone-hover');
-});
-dropZone.addEventListener('dragleave', function() {
-  dropZone.classList.remove('drop-zone-hover');
-});
-dropZone.addEventListener('drop', function(e) {
-  e.preventDefault();
-  dropZone.classList.remove('drop-zone-hover');
-  const f = e.dataTransfer.files[0];
-  if (f) setFile(f);
-});
+const HEADER_MAP = {
+  'посын мерчантын нэр':                  'merchant_name',
+  'мерчантын нэр':                        'merchant_name',
+  'нэр':                                  'merchant_name',
+  'посын сериал':                         'pos_serial',
+  'сериал':                               'pos_serial',
+  'мерчантын дугаар':                     'merchant_number',
+  'терминалын дугаар':                    'terminal_number',
+  'терминал':                             'terminal_number',
+  'төлөв':                                'status',
+  'гэрээний төлөв':                       'status',
+  'пос гаргасан огноо':                   'pos_issue_date',
+  'утас':                                 'phone',
+  'мерчантын хэлбэр':                     'merchant_type',
+  'хэлбэр':                               'merchant_type',
+  'мерчант гаргасан ажилтан':             'issued_by',
+  'ажилтан':                              'issued_by',
+  'хэлтэс':                               'department',
+  'гэрээ ирсэн байх ёстой огноо':         'expected_date',
+  'гэрээ хүлээн авсан огноо':             'received_date',
+  'хугацаа хэтэрсэн хоног':              'overdue_days',
+  'хугацааны ангилал':                    'time_category',
+  'эхний хяналтаарх үр дүн':             'first_inspection',
+  'тайлбар':                              'description',
+  'буцаасан огноо':                       'return_date',
+  'сүүлийн хяналтаар хүлээн авсан огноо': 'last_inspection_date',
+};
 
-function onFileSelect(input) {
-  if (input.files[0]) setFile(input.files[0]);
-}
+const ICON_OK   = `<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"
+  style="width:16px;height:16px"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_SKIP = `<svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
+  style="width:16px;height:16px">
+  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-function setFile(f) {
-  if (!f.name.toLowerCase().endsWith('.xlsx')) {
-    alert('Зөвхөн .xlsx файл оруулна уу!');
+const OPTIONS_HTML = Object.entries(DB_FIELDS)
+  .map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+
+let _file = null;
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    showErr('Зөвхөн .xlsx файл оруулна уу!');
+    this.value = '';
     return;
   }
-  // Update drop zone
-  document.getElementById('dzIcon').style.display = 'none';
-  document.getElementById('dzTitle').style.display = 'none';
-  document.getElementById('dzSub').style.display   = 'none';
-
-  document.getElementById('fileName').textContent = f.name;
-  document.getElementById('fileSize').textContent = (f.size / 1024).toFixed(1) + ' KB';
-  fileInfo.style.display = 'flex';
-  submitBtn.disabled = false;
-
-  // Use DataTransfer to assign to real input if came from drop
-  if (f !== fileInput.files[0]) {
-    const dt = new DataTransfer();
-    dt.items.add(f);
-    fileInput.files = dt.files;
-  }
-}
-
-function removeFile() {
-  fileInput.value = '';
-  fileInfo.style.display = 'none';
-  document.getElementById('dzIcon').style.display = '';
-  document.getElementById('dzTitle').style.display = '';
-  document.getElementById('dzSub').style.display   = '';
-  submitBtn.disabled = true;
-}
-
-// Show loading on submit
-document.getElementById('importForm').addEventListener('submit', function() {
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px;animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>Уншиж байна...';
+  hideErr();
+  _file = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws || !ws['!ref']) { showErr('Хоосон Excel файл.'); return; }
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const headers = [];
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c })];
+        headers.push(cell ? String(cell.v) : '');
+      }
+      buildMapping(headers, file.name);
+    } catch(err) { showErr('Файл уншихад алдаа: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
 });
+
+function showErr(msg) {
+  const el = document.getElementById('fileError');
+  el.textContent = msg; el.style.display = 'block'; _file = null;
+}
+function hideErr() { document.getElementById('fileError').style.display = 'none'; }
+
+function buildMapping(headers, filename) {
+  document.getElementById('selectedFilename').textContent = filename;
+  const tbody = document.getElementById('mappingBody');
+  tbody.innerHTML = '';
+
+  headers.forEach((h, idx) => {
+    const key  = (h || '').toLowerCase().trim();
+    const auto = HEADER_MAP[key] || '';
+    if (auto === 'dd_col') return;
+
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid var(--border);transition:opacity .15s';
+    tr.innerHTML = `
+      <td style="padding:11px 20px;font-size:13px;font-family:monospace;color:var(--text)">
+        ${h || '<em style="color:var(--text-muted)">(хоосон)</em>'}
+      </td>
+      <td style="text-align:center;padding:11px 8px;color:var(--text-muted);font-size:18px">→</td>
+      <td style="padding:8px 20px">
+        <select data-idx="${idx}"
+          style="width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;
+                 font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);cursor:pointer"
+          onchange="onRowChange(this)">
+          ${OPTIONS_HTML}
+        </select>
+      </td>
+      <td style="padding:11px 12px;text-align:center;width:40px" id="icon_${idx}"></td>
+    `;
+    tbody.appendChild(tr);
+    const sel = tr.querySelector('select');
+    sel.value = auto;
+    refreshRow(sel);
+  });
+
+  updateSummary();
+  document.getElementById('uploadCard').style.display = 'none';
+  document.getElementById('mappingCard').style.display = 'block';
+}
+
+function onRowChange(sel) { refreshRow(sel); updateSummary(); }
+
+function refreshRow(sel) {
+  const tr   = sel.closest('tr');
+  const icon = document.getElementById('icon_' + sel.dataset.idx);
+  if (sel.value) { tr.style.opacity = '1';    icon.innerHTML = ICON_OK;   }
+  else           { tr.style.opacity = '0.45'; icon.innerHTML = ICON_SKIP; }
+}
+
+function updateSummary() {
+  const sels = document.querySelectorAll('#mappingBody select');
+  let matched = 0, skipped = 0;
+  sels.forEach(s => s.value ? matched++ : skipped++);
+  document.getElementById('summaryChips').innerHTML = `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#166534;
+                 padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600">
+      ${ICON_OK} ${matched} багана импортлогдоно
+    </span>
+    ${skipped ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;
+                 color:#64748b;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600">
+      ${ICON_SKIP} ${skipped} багана алгасах
+    </span>` : ''}
+  `;
+  document.getElementById('importBtn').disabled = matched === 0;
+}
+
+function resetUI() {
+  _file = null;
+  document.getElementById('fileInput').value = '';
+  hideErr();
+  document.getElementById('mappingCard').style.display = 'none';
+  document.getElementById('uploadCard').style.display  = 'block';
+}
+
+function submitImport() {
+  if (!_file) return;
+  const mapping = {};
+  document.querySelectorAll('#mappingBody select').forEach(sel => {
+    if (sel.value) mapping[sel.dataset.idx] = sel.value;
+  });
+  const dt = new DataTransfer();
+  dt.items.add(_file);
+  document.getElementById('hiddenFile').files = dt.files;
+  document.getElementById('mappingInput').value = JSON.stringify(mapping);
+  document.getElementById('importForm').submit();
+}
 </script>
-
-<style>
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 48px 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-  background: var(--bg);
-}
-.drop-zone:hover, .drop-zone-hover {
-  border-color: var(--accent) !important;
-  background: var(--info-light) !important;
-}
-.drop-zone-icon { margin-bottom: 14px; }
-.drop-zone-icon svg { width: 48px; height: 48px; color: var(--text-muted); }
-.drop-zone-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-.drop-zone-sub   { font-size: 13px; color: var(--text-muted); }
-
-.file-info {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; margin-top: 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--success-light);
-}
-.file-info-icon { color: var(--success); flex-shrink:0; }
-.file-info-icon svg { width: 24px; height: 24px; }
-.file-info-text { flex: 1; display: flex; flex-direction: column; }
-.file-info-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
-.file-info-size { font-size: 12px; color: var(--text-muted); }
-.file-info-remove {
-  background: none; border: none; cursor: pointer; padding: 4px;
-  color: var(--text-muted); border-radius: var(--radius-sm);
-}
-.file-info-remove:hover { color: var(--danger); background: var(--danger-light); }
-.file-info-remove svg { width: 16px; height: 16px; }
-
-.col-format-table { overflow-x: auto; margin-bottom: 4px; }
-.col-format-table .data-table td { white-space: normal; }
-.text-muted { color: var(--text-muted); }
-
-.tip-list { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-.tip-list li { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
-
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
 {% endblock %}

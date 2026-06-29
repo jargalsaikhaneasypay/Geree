@@ -3,6 +3,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import tempfile
+import json
 from datetime import datetime, date, timedelta
 import openpyxl
 from openpyxl import load_workbook
@@ -517,140 +518,116 @@ def import_excel():
         return redirect(url_for('import_page'))
 
 
-def _run_import(tmp_path, has_header):
-    wb = load_workbook(tmp_path, data_only=True)
-    ws = wb.active
-
-    first_row = [cell_val(c) for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))]
-    col_map = {}
-    for idx, h in enumerate(first_row):
-        key = h.lower().strip()
-        if key in HEADER_MAP:
-            field = HEADER_MAP[key]
-            if field != 'dd_col':
-                col_map[field] = idx
-
-    if not has_header:
-        for idx, field in POSITIONAL_MAP.items():
-            if field != 'dd_col':
-                col_map[field] = idx
-
-    data_start_row = 2 if has_header else 1
-
-    conn = get_db()
-    cur  = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute('SELECT MAX(dd) AS m FROM contracts')
-    dd = (cur.fetchone()['m'] or 0) + 1
-
-    imported = 0
-    skipped  = 0
-    err_rows = []
-
-    def get_field(row, field):
-        idx = col_map.get(field)
-        if idx is None or idx >= len(row):
-            return ''
-        return cell_val(row[idx])
-
-    for r_idx, row in enumerate(ws.iter_rows(min_row=data_start_row, values_only=True), start=data_start_row):
-        if not any(v for v in row if v not in (None, '')):
-            continue
-        try:
-            merchant_name        = get_field(row, 'merchant_name')
-            pos_serial           = get_field(row, 'pos_serial')
-            merchant_number      = get_field(row, 'merchant_number')
-            terminal_number      = get_field(row, 'terminal_number')
-            status               = get_field(row, 'status')
-            pos_issue_date       = get_field(row, 'pos_issue_date')
-            phone                = get_field(row, 'phone')
-            merchant_type        = get_field(row, 'merchant_type')
-            issued_by            = get_field(row, 'issued_by')
-            department           = get_field(row, 'department')
-            expected_date        = get_field(row, 'expected_date')
-            received_date        = get_field(row, 'received_date')
-            first_inspection     = get_field(row, 'first_inspection')
-            description          = get_field(row, 'description')
-            return_date          = get_field(row, 'return_date')
-            last_inspection_date = get_field(row, 'last_inspection_date')
-
-            overdue_days_raw  = get_field(row, 'overdue_days')
-            time_category_raw = get_field(row, 'time_category')
-
-            if expected_date and received_date:
-                try:
-                    diff = (date.fromisoformat(received_date) - date.fromisoformat(expected_date)).days
-                    overdue_days  = diff
-                    time_category = 'Хугацаандаа' if diff <= 0 else 'Хугацаа хэтэрсэн'
-                except Exception:
-                    overdue_days  = overdue_days_raw or None
-                    time_category = time_category_raw or 'Хугацаа хэтэрсэн'
-            else:
-                overdue_days  = overdue_days_raw or None
-                time_category = time_category_raw or 'Хугацаа хэтэрсэн'
-
-            if not merchant_name:
-                skipped += 1
-                continue
-
-            if terminal_number:
-                cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
-                if cur.fetchone():
-                    err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
-                    skipped += 1
-                    continue
-
-            cur.execute('''
-                INSERT INTO contracts
-                (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                 status, pos_issue_date, phone, merchant_type, issued_by,
-                 department, expected_date, received_date, overdue_days, time_category,
-                 first_inspection, description, return_date, last_inspection_date)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                  status, pos_issue_date, phone, merchant_type, issued_by,
-                  department, expected_date, received_date, overdue_days, time_category,
-                  first_inspection, description, return_date, last_inspection_date))
-            dd       += 1
-            imported += 1
-
-        except Exception as ex:
-            err_rows.append(f'Мөр {r_idx}: {ex}')
-
-    conn.commit()
-    cur.close()
-    conn.close()
-    wb.close()
-    return imported, skipped, err_rows
-
-
 @app.route('/import-confirm', methods=['POST'])
 @login_required
 def import_confirm():
-    tmp_path   = session.pop('import_tmp', None)
-    has_header = session.pop('import_has_header', True)
-    session.pop('import_filename', None)
-
-    if not tmp_path or not os.path.exists(tmp_path):
-        flash('Сесс дууссан байна. Файлыг дахин оруулна уу.', 'error')
-        return redirect(url_for('import_page'))
-
+    # Mapping sent as JSON: {"col_idx": "db_field", ...}
     try:
-        imported, _, err_rows = _run_import(tmp_path, has_header)
-    except Exception as e:
-        flash(f'Импортлоход алдаа гарлаа: {str(e)}', 'error')
+        col_map_raw = json.loads(request.form.get('mapping', '{}'))
+        col_map = {v: int(k) for k, v in col_map_raw.items() if v}
+    except Exception:
+        flash('Баганын харгалзаа алдаатай байна.', 'error')
         return redirect(url_for('import_page'))
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+
+    if 'file' not in request.files or request.files['file'].filename == '':
+        flash('Файл олдсонгүй.', 'error')
+        return redirect(url_for('import_page'))
+
+    file = request.files['file']
+    try:
+        wb  = load_workbook(file, data_only=True)
+        ws  = wb.active
+        conn = get_db()
+        cur  = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT MAX(dd) AS m FROM contracts')
+        dd = (cur.fetchone()['m'] or 0) + 1
+
+        imported = 0
+        skipped  = 0
+        err_rows = []
+
+        def gf(row, field):
+            idx = col_map.get(field)
+            if idx is None or idx >= len(row):
+                return ''
+            return cell_val(row[idx])
+
+        for r_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not any(v for v in row if v not in (None, '')):
+                continue
+            try:
+                merchant_name        = gf(row, 'merchant_name')
+                pos_serial           = gf(row, 'pos_serial')
+                merchant_number      = gf(row, 'merchant_number')
+                terminal_number      = gf(row, 'terminal_number')
+                status               = gf(row, 'status')
+                pos_issue_date       = gf(row, 'pos_issue_date')
+                phone                = gf(row, 'phone')
+                merchant_type        = gf(row, 'merchant_type')
+                issued_by            = gf(row, 'issued_by')
+                department           = gf(row, 'department')
+                expected_date        = gf(row, 'expected_date')
+                received_date        = gf(row, 'received_date')
+                first_inspection     = gf(row, 'first_inspection')
+                description          = gf(row, 'description')
+                return_date          = gf(row, 'return_date')
+                last_inspection_date = gf(row, 'last_inspection_date')
+
+                if expected_date and received_date:
+                    try:
+                        diff = (date.fromisoformat(received_date) - date.fromisoformat(expected_date)).days
+                        overdue_days  = diff
+                        time_category = 'Хугацаандаа' if diff <= 0 else 'Хугацаа хэтэрсэн'
+                    except Exception:
+                        overdue_days  = gf(row, 'overdue_days') or None
+                        time_category = gf(row, 'time_category') or 'Хугацаа хэтэрсэн'
+                else:
+                    overdue_days  = gf(row, 'overdue_days') or None
+                    time_category = gf(row, 'time_category') or 'Хугацаа хэтэрсэн'
+
+                if not merchant_name:
+                    skipped += 1
+                    continue
+
+                if terminal_number:
+                    cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
+                    if cur.fetchone():
+                        err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
+                        skipped += 1
+                        continue
+
+                cur.execute('''
+                    INSERT INTO contracts
+                    (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                     status, pos_issue_date, phone, merchant_type, issued_by,
+                     department, expected_date, received_date, overdue_days, time_category,
+                     first_inspection, description, return_date, last_inspection_date)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                      status, pos_issue_date, phone, merchant_type, issued_by,
+                      department, expected_date, received_date, overdue_days, time_category,
+                      first_inspection, description, return_date, last_inspection_date))
+                dd += 1
+                imported += 1
+
+            except Exception as ex:
+                err_rows.append(f'Мөр {r_idx}: {ex}')
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        wb.close()
+
+    except Exception as e:
+        flash(f'Файл уншихад алдаа гарлаа: {str(e)}', 'error')
+        return redirect(url_for('import_page'))
 
     if imported:
         flash(f'{imported} бүртгэл амжилттай импортлогдлоо!', 'success')
     for err in err_rows:
         flash(err, 'error')
     if not imported and not err_rows:
-        flash('Импортлох мэдээлэл олдсонгүй. Файлын формат зөв эсэхийг шалгана уу.', 'error')
+        flash('Импортлох мэдээлэл олдсонгүй.', 'error')
 
     return redirect(url_for('index'))
 

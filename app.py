@@ -732,9 +732,16 @@ def managers_edit(mid):
         return redirect(url_for('managers_list'))
     try:
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Get current name before updating (in case name also changed)
+        cur.execute('SELECT name FROM managers WHERE id = %s', (mid,))
+        row = cur.fetchone()
+        old_name = row['name'] if row else name
         cur.execute('UPDATE managers SET name = %s, department = %s WHERE id = %s',
                     (name, dept, mid))
+        # Cascade department change to all contracts with matching issued_by
+        cur.execute('UPDATE contracts SET department = %s WHERE issued_by = %s',
+                    (dept, old_name))
         conn.commit()
         cur.close()
         conn.close()

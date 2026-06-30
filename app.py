@@ -89,21 +89,39 @@ def init_db():
     conn.close()
 
 
-def calculate_overdue(expected_date, received_date):
-    if not expected_date or not received_date:
-        return None
-    try:
-        exp = datetime.strptime(expected_date, '%Y-%m-%d').date()
-        rec = datetime.strptime(received_date, '%Y-%m-%d').date()
-        return (rec - exp).days
-    except Exception:
-        return None
+def calc_status(expected_date, received_date):
+    """Return (overdue_days, time_category) based on the date combination.
 
-
-def get_time_category(overdue_days):
-    if overdue_days is None:
-        return 'Хугацаа хэтэрсэн'
-    return 'Хугацаандаа' if overdue_days <= 0 else 'Хугацаа хэтэрсэн'
+    Both dates present:
+      received <= expected → Хугацаандаа (on time or early)
+      received >  expected → Хугацаа хэтэрсэн (late)
+    expected only (received blank):
+      expected >= today    → Хоосон (not yet due, not received)
+      expected <  today    → Хугацаа хэтэрсэн (past due, never received)
+    Neither date:          → Хоосон
+    """
+    today = date.today()
+    if expected_date and received_date:
+        try:
+            exp = datetime.strptime(expected_date, '%Y-%m-%d').date()
+            rec = datetime.strptime(received_date, '%Y-%m-%d').date()
+            diff = (rec - exp).days
+            cat  = 'Хугацаандаа' if diff <= 0 else 'Хугацаа хэтэрсэн'
+            return diff, cat
+        except Exception:
+            return None, 'Хоосон'
+    elif expected_date:
+        try:
+            exp  = datetime.strptime(expected_date, '%Y-%m-%d').date()
+            diff = (today - exp).days
+            if exp >= today:
+                return 0, 'Хоосон'
+            else:
+                return diff, 'Хугацаа хэтэрсэн'
+        except Exception:
+            return None, 'Хоосон'
+    else:
+        return None, 'Хоосон'
 
 
 def row_to_dict(row):
@@ -223,8 +241,7 @@ def add():
         last_inspection_date = request.form.get('last_inspection_date', '').strip()
         scanned              = '1' if request.form.get('scanned') else ''
 
-        overdue_days  = calculate_overdue(expected_date, received_date)
-        time_category = get_time_category(overdue_days)
+        overdue_days, time_category = calc_status(expected_date, received_date)
 
         if terminal_number:
             cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
@@ -310,8 +327,7 @@ def edit(cid):
         scanned              = '1' if request.form.get('scanned') else ''
         inactive_reason      = request.form.get('inactive_reason', '').strip()
 
-        overdue_days  = calculate_overdue(expected_date, received_date)
-        time_category = get_time_category(overdue_days)
+        overdue_days, time_category = calc_status(expected_date, received_date)
 
         if terminal_number:
             cur.execute('SELECT id FROM contracts WHERE terminal_number = %s AND id != %s', (terminal_number, cid))
@@ -573,17 +589,7 @@ def import_confirm():
                 return_date          = gf(row, 'return_date')
                 last_inspection_date = gf(row, 'last_inspection_date')
 
-                if expected_date and received_date:
-                    try:
-                        diff = (date.fromisoformat(received_date) - date.fromisoformat(expected_date)).days
-                        overdue_days  = diff
-                        time_category = 'Хугацаандаа' if diff <= 0 else 'Хугацаа хэтэрсэн'
-                    except Exception:
-                        overdue_days  = gf(row, 'overdue_days') or None
-                        time_category = gf(row, 'time_category') or 'Хугацаа хэтэрсэн'
-                else:
-                    overdue_days  = gf(row, 'overdue_days') or None
-                    time_category = gf(row, 'time_category') or 'Хугацаа хэтэрсэн'
+                overdue_days, time_category = calc_status(expected_date, received_date)
 
                 if not merchant_name:
                     skipped += 1

@@ -200,21 +200,31 @@
 
 <script>
 function calcOverdue() {
-  const exp = document.getElementById('expected_date').value;
-  const rec = document.getElementById('received_date').value;
+  const exp    = document.getElementById('expected_date').value;
+  const rec    = document.getElementById('received_date').value;
+  const today  = new Date(); today.setHours(0,0,0,0);
   const daysEl = document.getElementById('overdueDaysDisplay');
   const catEl  = document.getElementById('timeCategoryDisplay');
+
   if (exp && rec) {
     const diff = Math.round((new Date(rec) - new Date(exp)) / 86400000);
     daysEl.textContent = diff;
     daysEl.className   = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
     catEl.textContent  = diff <= 0 ? 'Хугацаандаа' : 'Хугацаа хэтэрсэн';
     catEl.className    = 'calc-field ' + (diff <= 0 ? 'calc-field-ok' : 'calc-field-bad');
+  } else if (exp && !rec) {
+    const expDate = new Date(exp); expDate.setHours(0,0,0,0);
+    if (expDate >= today) {
+      daysEl.textContent = '—'; daysEl.className = 'calc-field';
+      catEl.textContent  = 'Хоосон'; catEl.className = 'calc-field';
+    } else {
+      const diff = Math.round((today - expDate) / 86400000);
+      daysEl.textContent = diff; daysEl.className = 'calc-field calc-field-bad';
+      catEl.textContent  = 'Хугацаа хэтэрсэн'; catEl.className = 'calc-field calc-field-bad';
+    }
   } else {
-    daysEl.textContent = '—';
-    daysEl.className   = 'calc-field';
-    catEl.textContent  = exp && !rec ? 'Хугацаа хэтэрсэн' : '—';
-    catEl.className    = 'calc-field' + (exp && !rec ? ' calc-field-bad' : '');
+    daysEl.textContent = '—'; daysEl.className = 'calc-field';
+    catEl.textContent  = 'Хоосон'; catEl.className = 'calc-field';
   }
 }
 </script>

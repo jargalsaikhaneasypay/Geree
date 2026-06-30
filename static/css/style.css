@@ -314,7 +314,6 @@ html, body { height: 100%; background: var(--bg); }
 .row-overdue td { border-left: none; }
 .row-overdue:hover td { background: #FEF5F5; }
 .row-ontime:hover  td { background: #F4FBF7; }
-.row-empty td  { color: #ADAAAA; }
 .row-empty:hover td { background: #F7F6F6; }
 
 .col-dd      { width: 50px; }

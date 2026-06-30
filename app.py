@@ -578,16 +578,27 @@ def import_confirm():
     file = request.files['file']
     sheet_name = request.form.get('sheet_name', '').strip()
     try:
-        wb  = load_workbook(file, data_only=True)
+        file_bytes = file.read()
+        from io import BytesIO
+        wb  = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
         ws  = wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames else wb.active
         conn = get_db()
         cur  = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Pre-load max dd and all existing terminal numbers in one go
         cur.execute('SELECT MAX(dd) AS m FROM contracts')
         dd = (cur.fetchone()['m'] or 0) + 1
+        cur.execute('SELECT terminal_number FROM contracts WHERE terminal_number IS NOT NULL AND terminal_number != \'\'')
+        existing_terminals = {r['terminal_number'] for r in cur.fetchall()}
+
+        # Pre-load manager→department map
+        cur.execute('SELECT name, department FROM managers')
+        mgr_map = {r['name']: r['department'] for r in cur.fetchall()}
 
         imported = 0
         skipped  = 0
         err_rows = []
+        batch    = []
 
         def gf(row, field):
             idx = col_map.get(field)
@@ -600,6 +611,10 @@ def import_confirm():
                 continue
             try:
                 merchant_name        = gf(row, 'merchant_name')
+                if not merchant_name:
+                    skipped += 1
+                    continue
+
                 pos_serial           = gf(row, 'pos_serial')
                 merchant_number      = gf(row, 'merchant_number')
                 terminal_number      = gf(row, 'terminal_number')
@@ -610,12 +625,9 @@ def import_confirm():
                 issued_by            = gf(row, 'issued_by')
                 department           = gf(row, 'department')
 
-                # Auto-fill department from managers table if not in Excel
-                if issued_by and not department:
-                    cur.execute('SELECT department FROM managers WHERE name = %s', (issued_by,))
-                    _mgr = cur.fetchone()
-                    if _mgr:
-                        department = _mgr['department']
+                # Auto-fill department from managers map if not in Excel
+                if issued_by and not department and issued_by in mgr_map:
+                    department = mgr_map[issued_by]
 
                 expected_date        = gf(row, 'expected_date')
                 received_date        = gf(row, 'received_date')
@@ -626,38 +638,38 @@ def import_confirm():
 
                 overdue_days, time_category = calc_status(expected_date, received_date)
 
-                if not merchant_name:
+                if terminal_number and terminal_number in existing_terminals:
+                    err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
                     skipped += 1
                     continue
 
+                batch.append((dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                              status, pos_issue_date, phone, merchant_type, issued_by,
+                              department, expected_date, received_date, overdue_days, time_category,
+                              first_inspection, description, return_date, last_inspection_date))
                 if terminal_number:
-                    cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
-                    if cur.fetchone():
-                        err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
-                        skipped += 1
-                        continue
-
-                cur.execute('''
-                    INSERT INTO contracts
-                    (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                     status, pos_issue_date, phone, merchant_type, issued_by,
-                     department, expected_date, received_date, overdue_days, time_category,
-                     first_inspection, description, return_date, last_inspection_date)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
-                      status, pos_issue_date, phone, merchant_type, issued_by,
-                      department, expected_date, received_date, overdue_days, time_category,
-                      first_inspection, description, return_date, last_inspection_date))
+                    existing_terminals.add(terminal_number)
                 dd += 1
                 imported += 1
 
             except Exception as ex:
                 err_rows.append(f'Мөр {r_idx}: {ex}')
 
+        wb.close()
+
+        if batch:
+            cur.executemany('''
+                INSERT INTO contracts
+                (dd, merchant_name, pos_serial, merchant_number, terminal_number,
+                 status, pos_issue_date, phone, merchant_type, issued_by,
+                 department, expected_date, received_date, overdue_days, time_category,
+                 first_inspection, description, return_date, last_inspection_date)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ''', batch)
+
         conn.commit()
         cur.close()
         conn.close()
-        wb.close()
 
     except Exception as e:
         flash(f'Файл уншихад алдаа гарлаа: {str(e)}', 'error')

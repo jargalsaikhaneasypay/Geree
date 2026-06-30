@@ -188,7 +188,7 @@ function setPeriod(p) {
     // Re-add matching options
     allOpts.forEach(function(opt) {
       var optDept = opt.dataset.dept;
-      if (!selDept || !optDept || optDept === selDept) {
+      if (!selDept || optDept === selDept) {
         empSel.appendChild(opt.cloneNode(true));
       }
     });

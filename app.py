@@ -85,6 +85,23 @@ def init_db():
                     'is_inactive', 'inactive_reason', 'modified_by', 'scanned']:
         cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
+
+    # Migrate old data: both dates blank → Хоосон
+    cur.execute("""
+        UPDATE contracts
+        SET time_category = 'Хоосон', overdue_days = NULL
+        WHERE (expected_date IS NULL OR expected_date = '')
+          AND (received_date IS NULL OR received_date = '')
+    """)
+    # Migrate old data: expected set, not yet received, still within deadline → Хоосон
+    cur.execute("""
+        UPDATE contracts
+        SET time_category = 'Хоосон', overdue_days = 0
+        WHERE expected_date IS NOT NULL AND expected_date != ''
+          AND (received_date IS NULL OR received_date = '')
+          AND expected_date::date >= CURRENT_DATE
+    """)
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -837,7 +854,7 @@ def dashboard():
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
     all_rows = cur.fetchall()
     inactive_count = sum(1 for r in all_rows if r['is_inactive'] == '1')
-    rows = [r for r in all_rows if r['is_inactive'] != '1']
+    rows = [r for r in all_rows if r['is_inactive'] != '1' and r['time_category'] != 'Хоосон']
 
     total   = len(rows)
     on_time = sum(1 for r in rows if r['time_category'] == 'Хугацаандаа')

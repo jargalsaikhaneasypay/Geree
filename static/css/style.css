@@ -314,6 +314,8 @@ html, body { height: 100%; background: var(--bg); }
 .row-overdue td { border-left: none; }
 .row-overdue:hover td { background: #FEF5F5; }
 .row-ontime:hover  td { background: #F4FBF7; }
+.row-empty td  { color: #ADAAAA; }
+.row-empty:hover td { background: #F7F6F6; }
 
 .col-dd      { width: 50px; }
 .col-days    { width: 90px; }
@@ -356,6 +358,7 @@ html, body { height: 100%; background: var(--bg); }
 }
 .badge-success { background: var(--success-light); color: var(--success); }
 .badge-danger  { background: var(--danger-light);  color: var(--danger); }
+.badge-empty   { background: #F0EFEF; color: #ADAAAA; }
 .badge-dept    { background: #EBF2FA; color: var(--accent); }
 .badge-inspection      { background: #F3EFE8; color: #7A5C2E; }
 .badge-insp-full       { background: #D5F5E3; color: #1A7F4F; border: 1px solid #A8E6C3; font-weight: 700; }

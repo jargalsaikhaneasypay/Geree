@@ -126,7 +126,7 @@
       </thead>
       <tbody>
         {% for c in contracts %}
-        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% else %}row-ontime{% endif %}">
+        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% elif c.time_category == 'Хоосон' %}row-empty{% else %}row-ontime{% endif %}">
           <td class="text-center fw-600">{{ c.dd }}</td>
           <td class="fw-500">{{ c.merchant_name or '—' }}</td>
           <td class="mono">{{ c.pos_serial or '—' }}</td>
@@ -152,7 +152,7 @@
             {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
           </td>
           <td>
-            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% else %}badge-danger{% endif %}">
+            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% elif c.time_category == 'Хоосон' %}badge-empty{% else %}badge-danger{% endif %}">
               {{ c.time_category }}
             </span>
           </td>

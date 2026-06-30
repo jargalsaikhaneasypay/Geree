@@ -220,13 +220,13 @@
 <style>
 .col-filter-icon {
   display: inline-flex; align-items: center; justify-content: center;
-  margin-left: 5px; padding: 2px 3px; border-radius: 3px;
-  cursor: pointer; color: rgba(255,255,255,.55); vertical-align: middle;
+  margin-left: 4px; padding: 2px 4px; border-radius: 3px;
+  cursor: pointer; color: #8896A7; vertical-align: middle;
   flex-shrink: 0; transition: background .12s, color .12s;
+  border: 1px solid transparent;
 }
-.col-filter-icon:hover  { background: rgba(255,255,255,.18); color: #fff; }
-.col-filter-icon-active { color: #fbbf24 !important; }
-th .th-inner { display: inline-flex; align-items: center; }
+.col-filter-icon:hover  { background: #e2e8f0; color: #1E3A5F; border-color: #c8d0db; }
+.col-filter-icon-active { color: #D4800A !important; background: #FEF3E2 !important; border-color: #D4800A !important; }
 
 .col-filter-dropdown {
   position: fixed; z-index: 3000;
@@ -409,7 +409,7 @@ th .th-inner { display: inline-flex; align-items: center; }
     var icon = document.createElement('span');
     icon.className = 'col-filter-icon';
     icon.title = 'Шүүлт';
-    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;display:block"><polyline points="6 9 12 15 18 9"/></svg>';
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px;display:block"><polyline points="6 9 12 15 18 9"/></svg>';
     th.style.whiteSpace = 'nowrap';
     th.appendChild(icon);
     icon.addEventListener('click', function(e) { e.stopPropagation(); openDropdown(i, icon); });

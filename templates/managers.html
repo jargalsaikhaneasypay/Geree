@@ -59,7 +59,10 @@
             <td class="text-center">
               <div class="action-btns">
                 <button class="action-btn action-btn-edit" title="Засах"
-                        onclick="openEdit({{ m.id }}, {{ m.name|tojson }}, {{ m.department|tojson }})">
+                        data-id="{{ m.id }}"
+                        data-name="{{ m.name }}"
+                        data-dept="{{ m.department }}"
+                        onclick="openEdit(this)">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -127,10 +130,10 @@
 
 {% block extra_js %}
 <script>
-function openEdit(id, name, dept) {
-  document.getElementById('editForm').action = '/managers/edit/' + id;
-  document.getElementById('edit_name').value = name;
-  document.getElementById('edit_dept').value = dept;
+function openEdit(btn) {
+  document.getElementById('editForm').action = '/managers/edit/' + btn.dataset.id;
+  document.getElementById('edit_name').value = btn.dataset.name;
+  document.getElementById('edit_dept').value = btn.dataset.dept;
   document.getElementById('editModal').classList.add('open');
 }
 function closeEdit() {

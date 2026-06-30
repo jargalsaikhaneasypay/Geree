@@ -578,9 +578,7 @@ def import_confirm():
     file = request.files['file']
     sheet_name = request.form.get('sheet_name', '').strip()
     try:
-        file_bytes = file.read()
-        from io import BytesIO
-        wb  = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
+        wb  = load_workbook(file, data_only=True)
         ws  = wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames else wb.active
         conn = get_db()
         cur  = conn.cursor(cursor_factory=RealDictCursor)

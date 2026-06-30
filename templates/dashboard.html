@@ -128,10 +128,11 @@
           {% endfor %}
         </select>
 
-        <select name="employee" class="select-filter">
+        <select name="employee" id="employeeSelect" class="select-filter">
           <option value="">Бүх ажилтан</option>
           {% for emp in all_employees %}
-            <option value="{{ emp }}" {% if employee==emp %}selected{% endif %}>{{ emp }}</option>
+            <option value="{{ emp }}" data-dept="{{ mgr_dept_map.get(emp, '') }}"
+                    {% if employee==emp %}selected{% endif %}>{{ emp }}</option>
           {% endfor %}
         </select>
 
@@ -172,6 +173,33 @@ function setPeriod(p) {
   });
   event.target.classList.add('db-tab-active');
 }
+
+// Filter employee dropdown when dept changes
+(function() {
+  var deptSel = document.querySelector('select[name="dept"]');
+  var empSel  = document.getElementById('employeeSelect');
+  var allOpts = Array.from(empSel.options).slice(1); // skip "Бүх ажилтан"
+
+  function filterEmployees() {
+    var selDept = deptSel.value;
+    var curVal  = empSel.value;
+    // Remove all employee options
+    while (empSel.options.length > 1) empSel.remove(1);
+    // Re-add matching options
+    allOpts.forEach(function(opt) {
+      var optDept = opt.dataset.dept;
+      if (!selDept || !optDept || optDept === selDept) {
+        empSel.appendChild(opt.cloneNode(true));
+      }
+    });
+    // Restore selection if still valid
+    empSel.value = curVal;
+    if (empSel.value !== curVal) empSel.value = '';
+  }
+
+  deptSel.addEventListener('change', filterEmployees);
+  filterEmployees(); // run on page load to respect current dept filter
+})();
 
 // Combine year+month/quarter/half selects into hidden inputs before submit
 document.getElementById('dbForm').addEventListener('submit', function() {

@@ -968,6 +968,9 @@ def dashboard():
     cur.execute("SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by")
     all_employees = [r['issued_by'] for r in cur.fetchall()]
 
+    cur.execute("SELECT name, department FROM managers ORDER BY name")
+    mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
+
     base_cond   = "WHERE pos_issue_date BETWEEN %s AND %s"
     base_params = [d_from, d_to]
     if dept:
@@ -1075,6 +1078,7 @@ def dashboard():
         complete_pct=complete_pct, returned_pct=returned_pct,
         insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,
         inactive_count=inactive_count,
+        mgr_dept_map=mgr_dept_map,
     )
 
 

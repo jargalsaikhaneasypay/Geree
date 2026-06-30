@@ -656,13 +656,14 @@ def import_confirm():
         wb.close()
 
         if batch:
-            cur.executemany('''
+            from psycopg2.extras import execute_values
+            execute_values(cur, '''
                 INSERT INTO contracts
                 (dd, merchant_name, pos_serial, merchant_number, terminal_number,
                  status, pos_issue_date, phone, merchant_type, issued_by,
                  department, expected_date, received_date, overdue_days, time_category,
                  first_inspection, description, return_date, last_inspection_date)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES %s
             ''', batch)
 
         conn.commit()
@@ -675,8 +676,11 @@ def import_confirm():
 
     if imported:
         flash(f'{imported} бүртгэл амжилттай импортлогдлоо!', 'success')
-    for err in err_rows:
+    # Cap error flashes to avoid overflowing the session cookie
+    for err in err_rows[:20]:
         flash(err, 'error')
+    if len(err_rows) > 20:
+        flash(f'... болон өөр {len(err_rows) - 20} алдаа', 'error')
     if not imported and not err_rows:
         flash('Импортлох мэдээлэл олдсонгүй.', 'error')
 

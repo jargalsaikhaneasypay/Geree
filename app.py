@@ -33,7 +33,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-DEPARTMENTS = ['Борлуулалт', 'ХҮА', 'Салбар', 'Хөдөө орон нутаг', 'Томилолт']
+DEPARTMENTS = ['Борлуулалт', 'ХҮА', 'Салбар', 'Хөдөө орон нутаг']
 STATUSES = ['Гэрээ', 'Зарагдсан', 'Нэр шилжүүлэг', 'Түрээс']
 INSPECTION_RESULTS = [
     'Бүрэн',

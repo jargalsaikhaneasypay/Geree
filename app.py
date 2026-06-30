@@ -876,6 +876,7 @@ def admin():
 # Dashboard
 # -----------------------------------------------------------
 @app.route('/dashboard')
+@login_required
 def dashboard():
     import calendar
     from datetime import date as dt_date
@@ -1043,9 +1044,10 @@ def dashboard():
             month += 12; year -= 1
         m_from = dt_date(year, month, 1).isoformat()
         m_to   = dt_date(year, month, calendar.monthrange(year, month)[1]).isoformat()
-        cur.execute("SELECT COUNT(*) FROM contracts WHERE pos_issue_date BETWEEN %s AND %s", [m_from, m_to])
+        base = "pos_issue_date BETWEEN %s AND %s AND (is_inactive IS NULL OR is_inactive != '1') AND time_category != 'Хоосон'"
+        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base}", [m_from, m_to])
         t_total = cur.fetchone()['count']
-        cur.execute("SELECT COUNT(*) FROM contracts WHERE pos_issue_date BETWEEN %s AND %s AND time_category='Хугацаандаа'", [m_from, m_to])
+        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base} AND time_category='Хугацаандаа'", [m_from, m_to])
         t_on = cur.fetchone()['count']
         trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_total - t_on})
 

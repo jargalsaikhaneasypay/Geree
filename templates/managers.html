@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Ажилтан / Хэлтэс – Гэрээ бүртгэл{% endblock %}
+{% block page_title %}<h1 class="page-title">Ажилтан / Хэлтэс тохиргоо</h1>{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;margin:0 auto">
+
+  <!-- Add form -->
+  <div class="card form-card" style="margin-bottom:24px">
+    <div class="form-section-header">
+      <div class="section-num">+</div>
+      <div>
+        <h2 class="section-title">Шинэ ажилтан нэмэх</h2>
+        <p class="section-sub">Ажилтны нэр болон харьяа хэлтсийг оруулна уу</p>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('managers_add') }}">
+      <div class="form-grid" style="grid-template-columns:1fr 1fr auto;align-items:end;gap:16px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="add_name">Ажилтны нэр <span class="req">*</span></label>
+          <input type="text" id="add_name" name="name" class="form-input"
+                 placeholder="Бүтэн нэр..." required />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" for="add_dept">Хэлтэс <span class="req">*</span></label>
+          <select id="add_dept" name="department" class="form-select" required>
+            <option value="">— Сонгох —</option>
+            {% for d in departments %}
+              <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="padding-bottom:0">
+          <button type="submit" class="btn btn-primary">Нэмэх</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Managers table -->
+  <div class="card table-card">
+    {% if managers %}
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th>Ажилтны нэр</th>
+            <th>Хэлтэс</th>
+            <th style="width:120px" class="col-actions">Үйлдэл</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in managers %}
+          <tr>
+            <td class="text-center fw-600">{{ loop.index }}</td>
+            <td class="fw-500">{{ m.name }}</td>
+            <td><span class="badge badge-dept">{{ m.department }}</span></td>
+            <td class="text-center">
+              <div class="action-btns">
+                <button class="action-btn action-btn-edit" title="Засах"
+                        onclick="openEdit({{ m.id }}, {{ m.name|tojson }}, {{ m.department|tojson }})">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <form method="POST" action="{{ url_for('managers_delete', mid=m.id) }}"
+                      style="display:inline"
+                      onsubmit="return confirm('«{{ m.name }}» устгах уу?')">
+                  <button type="submit" class="action-btn action-btn-del" title="Устгах">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6"/><path d="M14 11v6"/>
+                    </svg>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <span class="table-count">Нийт <strong>{{ managers|length }}</strong> ажилтан</span>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+      </svg>
+      <p>Ажилтан бүртгэлгүй байна</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="editModal" onclick="if(event.target===this)closeEdit()">
+  <div class="modal">
+    <h3 class="modal-title">Ажилтан засах</h3>
+    <form method="POST" id="editForm">
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Ажилтны нэр <span class="req">*</span></label>
+        <input type="text" name="name" id="edit_name" class="form-input" required />
+      </div>
+      <div class="form-group" style="margin-bottom:24px">
+        <label class="form-label">Хэлтэс <span class="req">*</span></label>
+        <select name="department" id="edit_dept" class="form-select" required>
+          <option value="">— Сонгох —</option>
+          {% for d in departments %}
+            <option value="{{ d }}">{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeEdit()">Болих</button>
+        <button type="submit" class="btn btn-primary">Хадгалах</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openEdit(id, name, dept) {
+  document.getElementById('editForm').action = '/managers/edit/' + id;
+  document.getElementById('edit_name').value = name;
+  document.getElementById('edit_dept').value = dept;
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEdit() {
+  document.getElementById('editModal').classList.remove('open');
+}
+</script>
+{% endblock %}

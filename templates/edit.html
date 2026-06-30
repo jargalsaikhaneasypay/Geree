@@ -221,6 +221,20 @@
 </div>
 
 <script>
+// Auto-fill department when issued_by matches a known manager
+document.getElementById('issued_by').addEventListener('blur', function() {
+  const name = this.value.trim();
+  if (!name) return;
+  const deptSel = document.getElementById('department');
+  fetch('/api/manager-dept?name=' + encodeURIComponent(name))
+    .then(r => r.json())
+    .then(data => {
+      if (data.department && !deptSel.value) {
+        deptSel.value = data.department;
+      }
+    });
+});
+
 function calcOverdue() {
   const exp    = document.getElementById('expected_date').value;
   const rec    = document.getElementById('received_date').value;

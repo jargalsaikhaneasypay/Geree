@@ -26,7 +26,7 @@
       Дашбоард
     </a>
 
-    {% set admin_active = request.endpoint in ['index','add','import_page','admin','root'] %}
+    {% set admin_active = request.endpoint in ['index','add','import_page','admin','root','managers_list','managers_add','managers_edit','managers_delete'] %}
     {% if session.user %}
     <div class="nav-group {% if admin_active %}open{% endif %}">
       <div class="nav-group-header" onclick="this.parentElement.classList.toggle('open')">
@@ -63,6 +63,12 @@
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
           Excel оруулах
+        </a>
+        <a href="{{ url_for('managers_list') }}" class="nav-item nav-item-sub {% if request.endpoint=='managers_list' %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+          Ажилтан / Хэлтэс
         </a>
         <a href="{{ url_for('admin') }}" class="nav-item nav-item-sub {% if request.endpoint=='admin' %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

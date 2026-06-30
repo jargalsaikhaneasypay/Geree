@@ -86,6 +86,15 @@ def init_db():
         cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
 
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS managers (
+            id         SERIAL PRIMARY KEY,
+            name       TEXT UNIQUE NOT NULL,
+            department TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+
     # Migrate old data: both dates blank → Хоосон
     cur.execute("""
         UPDATE contracts
@@ -599,6 +608,14 @@ def import_confirm():
                 merchant_type        = gf(row, 'merchant_type')
                 issued_by            = gf(row, 'issued_by')
                 department           = gf(row, 'department')
+
+                # Auto-fill department from managers table if not in Excel
+                if issued_by and not department:
+                    cur.execute('SELECT department FROM managers WHERE name = %s', (issued_by,))
+                    _mgr = cur.fetchone()
+                    if _mgr:
+                        department = _mgr['department']
+
                 expected_date        = gf(row, 'expected_date')
                 received_date        = gf(row, 'received_date')
                 first_inspection     = gf(row, 'first_inspection')
@@ -654,9 +671,95 @@ def import_confirm():
 
     return redirect(url_for('index'))
 
-
 # -----------------------------------------------------------
-# Download Excel template
+# Manager → Department table (CRUD + API)
+# -----------------------------------------------------------
+@app.route('/managers', methods=['GET'])
+@login_required
+def managers_list():
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT * FROM managers ORDER BY name')
+    mgrs = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template('managers.html', managers=mgrs, departments=DEPARTMENTS)
+
+
+@app.route('/managers/add', methods=['POST'])
+@login_required
+def managers_add():
+    name = request.form.get('name', '').strip()
+    dept = request.form.get('department', '').strip()
+    if not name or not dept:
+        flash('Нэр болон хэлтэс шаардлагатай.', 'error')
+        return redirect(url_for('managers_list'))
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('INSERT INTO managers (name, department) VALUES (%s, %s)', (name, dept))
+        conn.commit()
+        cur.close()
+        conn.close()
+        flash(f'"{name}" нэмэгдлээ.', 'success')
+    except Exception as e:
+        flash(f'Алдаа: {e}', 'error')
+    return redirect(url_for('managers_list'))
+
+
+@app.route('/managers/edit/<int:mid>', methods=['POST'])
+@login_required
+def managers_edit(mid):
+    name = request.form.get('name', '').strip()
+    dept = request.form.get('department', '').strip()
+    if not name or not dept:
+        flash('Нэр болон хэлтэс шаардлагатай.', 'error')
+        return redirect(url_for('managers_list'))
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('UPDATE managers SET name = %s, department = %s WHERE id = %s',
+                    (name, dept, mid))
+        conn.commit()
+        cur.close()
+        conn.close()
+        flash('Өөрчлөлт хадгалагдлаа.', 'success')
+    except Exception as e:
+        flash(f'Алдаа: {e}', 'error')
+    return redirect(url_for('managers_list'))
+
+
+@app.route('/managers/delete/<int:mid>', methods=['POST'])
+@login_required
+def managers_delete(mid):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('DELETE FROM managers WHERE id = %s', (mid,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    flash('Устгагдлаа.', 'success')
+    return redirect(url_for('managers_list'))
+
+
+@app.route('/api/manager-dept')
+@login_required
+def api_manager_dept():
+    name = request.args.get('name', '').strip()
+    if not name:
+        return jsonify({'department': ''})
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT department FROM managers WHERE name = %s', (name,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return jsonify({'department': row['department'] if row else ''})
+
+
+#------------------------------------------------------------
+# -----------------------------------------------------------
+# Download Excel template------------------------------------
 # -----------------------------------------------------------
 @app.route('/template')
 def download_template():

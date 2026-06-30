@@ -576,9 +576,10 @@ def import_confirm():
         return redirect(url_for('import_page'))
 
     file = request.files['file']
+    sheet_name = request.form.get('sheet_name', '').strip()
     try:
         wb  = load_workbook(file, data_only=True)
-        ws  = wb.active
+        ws  = wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames else wb.active
         conn = get_db()
         cur  = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute('SELECT MAX(dd) AS m FROM contracts')

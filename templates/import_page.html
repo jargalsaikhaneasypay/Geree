@@ -65,6 +65,10 @@
       <button onclick="resetUI()" class="btn btn-ghost" style="font-size:13px">Өөр файл</button>
     </div>
 
+    <!-- Sheet selector (hidden when only 1 sheet) -->
+    <div id="sheetSelectorBar"
+         style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+
     <!-- Summary chips -->
     <div id="summaryChips" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
 
@@ -107,10 +111,20 @@
       enctype="multipart/form-data" style="display:none">
   <input type="file" name="file" id="hiddenFile">
   <input type="hidden" name="mapping" id="mappingInput">
+  <input type="hidden" name="sheet_name" id="sheetNameInput">
 </form>
 {% endblock %}
 
 {% block extra_js %}
+<style>
+.sheet-tab {
+  padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;
+  border:1.5px solid var(--border);background:var(--bg);color:var(--text-muted);
+  cursor:pointer;transition:all .15s;
+}
+.sheet-tab:hover { border-color:var(--primary);color:var(--primary); }
+.sheet-tab-active { background:var(--primary);color:#fff;border-color:var(--primary); }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const DB_FIELDS = {
@@ -178,6 +192,7 @@ for (const [h, f] of Object.entries(HEADER_MAP)) {
 
 let _file = null;
 let _headers = [];
+let _wb = null;
 
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
@@ -192,17 +207,8 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      const wb = XLSX.read(ev.target.result, { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      if (!ws || !ws['!ref']) { showErr('Хоосон Excel файл.'); return; }
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      const headers = [];
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c })];
-        headers.push(cell ? String(cell.v) : '');
-      }
-      _headers = headers;
-      buildMapping(headers, file.name);
+      _wb = XLSX.read(ev.target.result, { type: 'array' });
+      loadSheet(_wb.SheetNames[0], file.name);
     } catch(err) { showErr('Файл уншихад алдаа: ' + err.message); }
   };
   reader.readAsArrayBuffer(file);
@@ -214,8 +220,40 @@ function showErr(msg) {
 }
 function hideErr() { document.getElementById('fileError').style.display = 'none'; }
 
+function loadSheet(sheetName, filename) {
+  const ws = _wb.Sheets[sheetName];
+  if (!ws || !ws['!ref']) { showErr('Хоосон хүснэгт.'); return; }
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const headers = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c })];
+    headers.push(cell ? String(cell.v) : '');
+  }
+  _headers = headers;
+  document.getElementById('sheetNameInput').value = sheetName;
+  buildMapping(headers, filename || _file.name);
+}
+
+function buildSheetBar(sheetNames, activeSheet, filename) {
+  const bar = document.getElementById('sheetSelectorBar');
+  if (sheetNames.length <= 1) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = '<span style="font-size:13px;font-weight:600;color:var(--text-muted);white-space:nowrap">Хүснэгт:</span>'
+    + sheetNames.map(n =>
+        `<button type="button" onclick="selectSheet(this,'${n.replace(/'/g,"\\'")}','${filename.replace(/'/g,"\\'")}')"`
+        + ` class="sheet-tab${n===activeSheet?' sheet-tab-active':''}">${n}</button>`
+      ).join('');
+}
+
+function selectSheet(btn, sheetName, filename) {
+  document.querySelectorAll('.sheet-tab').forEach(b => b.classList.remove('sheet-tab-active'));
+  btn.classList.add('sheet-tab-active');
+  loadSheet(sheetName, filename);
+}
+
 function buildMapping(headers, filename) {
   document.getElementById('selectedFilename').textContent = filename;
+  if (_wb) buildSheetBar(_wb.SheetNames, document.getElementById('sheetNameInput').value, filename);
   const tbody = document.getElementById('mappingBody');
   tbody.innerHTML = '';
 
@@ -290,7 +328,7 @@ function updateSummary() {
 }
 
 function resetUI() {
-  _file = null;
+  _file = null; _wb = null;
   document.getElementById('fileInput').value = '';
   hideErr();
   document.getElementById('mappingCard').style.display = 'none';

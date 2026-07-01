@@ -1078,9 +1078,12 @@ def dashboard():
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
     all_rows = cur.fetchall()
     inactive_count = sum(1 for r in all_rows if r['is_inactive'] == '1')
-    rows = [r for r in all_rows if r['is_inactive'] != '1' and r['time_category'] != 'Хоосон']
+    active_rows    = [r for r in all_rows if r['is_inactive'] != '1']
+    hoosoon_count  = sum(1 for r in active_rows if r['time_category'] == 'Хоосон')
+    rows = [r for r in active_rows if r['time_category'] != 'Хоосон']
 
-    total   = len(rows)
+    total     = len(rows)
+    total_all = total + hoosoon_count  # all active contracts incl. Хоосон
     on_time = sum(1 for r in rows if r['time_category'] == 'Хугацаандаа')
     overdue = total - on_time
 
@@ -1142,12 +1145,16 @@ def dashboard():
             month += 12; year -= 1
         m_from = dt_date(year, month, 1).isoformat()
         m_to   = dt_date(year, month, calendar.monthrange(year, month)[1]).isoformat()
-        base = "pos_issue_date BETWEEN %s AND %s AND (is_inactive IS NULL OR is_inactive != '1') AND time_category != 'Хоосон'"
-        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base}", [m_from, m_to])
+        base_all  = "pos_issue_date BETWEEN %s AND %s AND (is_inactive IS NULL OR is_inactive != '1')"
+        base_timed = base_all + " AND time_category != 'Хоосон'"
+        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_all}", [m_from, m_to])
         t_total = cur.fetchone()['count']
-        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base} AND time_category='Хугацаандаа'", [m_from, m_to])
+        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_all} AND time_category='Хоосон'", [m_from, m_to])
+        t_hoosoon = cur.fetchone()['count']
+        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_timed} AND time_category='Хугацаандаа'", [m_from, m_to])
         t_on = cur.fetchone()['count']
-        trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_total - t_on})
+        t_timed = t_total - t_hoosoon
+        trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_timed - t_on, 'hoosoon': t_hoosoon})
 
     cur.execute("SELECT MIN(SUBSTRING(pos_issue_date, 1, 4)) AS min_year FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
     min_year_row = cur.fetchone()['min_year']
@@ -1165,7 +1172,8 @@ def dashboard():
         departments=DEPARTMENTS, all_employees=all_employees,
         years=years, today=today.isoformat(),
         months_mn=MONTHS_MN,
-        total=total, on_time=on_time, overdue=overdue,
+        total=total, total_all=total_all, hoosoon_count=hoosoon_count,
+        on_time=on_time, overdue=overdue,
         on_time_pct=on_time_pct, overdue_pct=overdue_pct,
         avg_overdue=avg_overdue, max_overdue=max_overdue,
         complete=complete, incomplete=incomplete, returned=returned,

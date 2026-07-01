@@ -227,7 +227,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 
   <div class="db-kpi-card db-kpi-primary">
     <div class="db-kpi-label">Нийт гэрээ</div>
-    <div class="db-kpi-value">{{ total }}</div>
+    <div class="db-kpi-value">{{ total_all }}</div>
     <div class="db-kpi-sub">бүртгэл</div>
   </div>
 
@@ -293,6 +293,16 @@ document.getElementById('dbForm').addEventListener('submit', function() {
       </span>
     </div>
     {% endif %}
+  </div>
+
+  <div class="db-kpi-card db-kpi-gray">
+    <div class="db-kpi-label">Хоосон бүртгэл</div>
+    <div class="db-kpi-value">{{ hoosoon_count }}</div>
+    {% set h_pct = (hoosoon_count / total_all * 100) | round(1) if total_all else 0 %}
+    <div class="db-kpi-sub">{{ h_pct }}% · огноогүй</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-gray" style="width:{{ h_pct }}%"></div>
+    </div>
   </div>
 
 </div>
@@ -387,6 +397,9 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         <div class="db-trend-bars">
           {% if max_t > 0 %}
           <div class="db-trend-bar-wrap">
+            <div class="db-trend-bar db-trend-hoosoon"
+                 style="height:{{ (t.hoosoon / max_t * 120) | int }}px"
+                 title="Хоосон: {{ t.hoosoon }}"></div>
             <div class="db-trend-bar db-trend-overdue"
                  style="height:{{ (t.overdue / max_t * 120) | int }}px"
                  title="Хугацаа хэтэрсэн: {{ t.overdue }}"></div>
@@ -404,6 +417,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     <div class="db-trend-legend">
       <span><span class="db-legend-dot" style="background:#1A7F4F;display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px"></span>Хугацаандаа</span>
       <span><span class="db-legend-dot" style="background:#C0392B;display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px"></span>Хугацаа хэтэрсэн</span>
+      <span><span class="db-legend-dot" style="background:#6B7280;display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px"></span>Хоосон</span>
     </div>
     {% else %}
     <div class="empty-chart">Мэдээлэл байхгүй</div>
@@ -574,6 +588,11 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 .db-kpi-amber .db-kpi-value { color: #B7791F; }
 .db-kpi-bar-amber { background: #B7791F; }
 
+.db-kpi-gray { border-top: 3px solid #6B7280; }
+.db-kpi-gray .db-kpi-label { color: #6B7280; }
+.db-kpi-gray .db-kpi-value { color: #6B7280; }
+.db-kpi-bar-gray { background: #6B7280; }
+
 .db-kpi-extra {
   margin-top: 10px; padding-top: 8px;
   border-top: 1px dashed #E2C97A;
@@ -614,6 +633,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 .db-trend-bar  { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .4s ease; }
 .db-trend-ontime  { background: var(--success); }
 .db-trend-overdue { background: var(--danger); }
+.db-trend-hoosoon { background: #6B7280; }
 .db-trend-total { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .db-trend-label { font-size: 11px; color: var(--text-muted); text-align: center; }
 .db-trend-legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); }

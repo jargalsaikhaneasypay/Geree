@@ -1083,7 +1083,7 @@ def dashboard():
     rows = [r for r in active_rows if r['time_category'] != 'Хоосон']
 
     total     = len(rows)
-    total_all = total + hoosoon_count  # all active contracts incl. Хоосон
+    total_all = total + hoosoon_count + inactive_count  # all contracts in the period
     on_time = sum(1 for r in rows if r['time_category'] == 'Хугацаандаа')
     overdue = total - on_time
 

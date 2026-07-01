@@ -981,7 +981,6 @@ def admin():
 # Dashboard
 # -----------------------------------------------------------
 @app.route('/dashboard')
-@login_required
 def dashboard():
     import calendar
     from datetime import date as dt_date

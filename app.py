@@ -174,13 +174,13 @@ def row_to_dict(row):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'user' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         email    = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         if email in USERS and check_password_hash(USERS[email], password):
             session['user'] = email
-            next_url = request.args.get('next') or url_for('index')
+            next_url = request.args.get('next') or url_for('dashboard')
             return redirect('/' + next_url.lstrip('/'))
         flash('И-мэйл эсвэл нууц үг буруу байна.', 'error')
     return render_template('login.html')

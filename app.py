@@ -357,9 +357,9 @@ def add():
         overdue_days, time_category = calc_status(expected_date, received_date)
 
         if terminal_number:
-            cur.execute('SELECT id FROM contracts WHERE terminal_number = %s', (terminal_number,))
+            cur.execute("SELECT id FROM contracts WHERE terminal_number = %s AND COALESCE(status,'') = %s", (terminal_number, status or ''))
             if cur.fetchone():
-                flash(f'Терминалын дугаар давхацсан: {terminal_number}', 'error')
+                flash(f'Терминалын дугаар давхацсан: {terminal_number} ({status})', 'error')
                 cur.close()
                 conn.close()
                 return redirect(url_for('add'))
@@ -443,9 +443,9 @@ def edit(cid):
         overdue_days, time_category = calc_status(expected_date, received_date)
 
         if terminal_number:
-            cur.execute('SELECT id FROM contracts WHERE terminal_number = %s AND id != %s', (terminal_number, cid))
+            cur.execute("SELECT id FROM contracts WHERE terminal_number = %s AND COALESCE(status,'') = %s AND id != %s", (terminal_number, status or '', cid))
             if cur.fetchone():
-                flash(f'Терминалын дугаар давхацсан: {terminal_number}', 'error')
+                flash(f'Терминалын дугаар давхацсан: {terminal_number} ({status})', 'error')
                 cur.close()
                 conn.close()
                 return render_template('edit.html', c=contract,
@@ -673,8 +673,8 @@ def import_confirm():
         # Pre-load max dd and all existing terminal numbers in one go
         cur.execute('SELECT MAX(dd) AS m FROM contracts')
         dd = (cur.fetchone()['m'] or 0) + 1
-        cur.execute('SELECT terminal_number FROM contracts WHERE terminal_number IS NOT NULL AND terminal_number != \'\'')
-        existing_terminals = {r['terminal_number'] for r in cur.fetchall()}
+        cur.execute("SELECT terminal_number, COALESCE(status,'') AS status FROM contracts WHERE terminal_number IS NOT NULL AND terminal_number != ''")
+        existing_terminals = {(r['terminal_number'], r['status']) for r in cur.fetchall()}
 
         # Pre-load manager history for date-based department lookup
         cur.execute('SELECT name, department, start_date FROM managers ORDER BY name, start_date')
@@ -738,8 +738,8 @@ def import_confirm():
 
                 overdue_days, time_category = calc_status(expected_date, received_date)
 
-                if terminal_number and terminal_number in existing_terminals:
-                    err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number})')
+                if terminal_number and (terminal_number, status or '') in existing_terminals:
+                    err_rows.append(f'Мөр {r_idx}: Терминалын дугаар давхацсан ({terminal_number}, {status})')
                     skipped += 1
                     continue
 
@@ -748,7 +748,7 @@ def import_confirm():
                               department, expected_date, received_date, overdue_days, time_category,
                               first_inspection, description, return_date, last_inspection_date))
                 if terminal_number:
-                    existing_terminals.add(terminal_number)
+                    existing_terminals.add((terminal_number, status or ''))
                 dd += 1
                 imported += 1
 

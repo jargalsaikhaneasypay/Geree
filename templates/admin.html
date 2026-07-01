@@ -91,7 +91,7 @@
 </div>
 
 <!-- Export section -->
-<div class="card export-card">
+<div class="card export-card" id="adminExportCard">
   <div class="export-info">
     <div class="export-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -102,27 +102,28 @@
     </div>
     <div>
       <h3 class="export-title">Excel татаж авах</h3>
-      <p class="export-sub">Бүх бүртгэлийг форматтай Excel файлаар татаж авна</p>
+      <p class="export-sub" id="adminExportSub">Бүх бүртгэлийг форматтай Excel файлаар татаж авна</p>
     </div>
   </div>
-  <a href="{{ url_for('export') }}" class="btn btn-success btn-lg">
+  <button onclick="adminExcelDownload()" class="btn btn-success btn-lg" id="adminExportBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;margin-right:8px">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
       <polyline points="7 10 12 15 17 10"/>
       <line x1="12" y1="15" x2="12" y2="3"/>
     </svg>
-    Excel татах ({{ total }} бүртгэл)
-  </a>
+    <span id="adminExportLabel">Excel татах ({{ total }} бүртгэл)</span>
+  </button>
 </div>
 
 <!-- Full table -->
-<div class="card table-card">
-  <div class="card-header">
+<div class="card table-card" id="adminTableCard">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
     <h3 class="card-title">Бүх бүртгэл</h3>
+    <span style="font-size:12px;color:var(--text-muted)">Нийт <strong class="admin-tbl-count">{{ contracts|length }}</strong> бүртгэл</span>
   </div>
   {% if contracts %}
   <div class="table-scroll">
-    <table class="data-table data-table-sm">
+    <table class="data-table data-table-sm" id="adminTable">
       <thead>
         <tr>
           <th>Д/д</th>
@@ -171,5 +172,156 @@
   </div>
   {% endif %}
 </div>
+
+<style>
+.col-filter-icon{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;padding:2px 4px;border-radius:3px;cursor:pointer;color:#8896A7;vertical-align:middle;flex-shrink:0;transition:background .12s,color .12s;border:1px solid transparent}
+.col-filter-icon:hover{background:#e2e8f0;color:#1E3A5F;border-color:#c8d0db}
+.col-filter-icon-active{color:#D4800A!important;background:#FEF3E2!important;border-color:#D4800A!important}
+.col-filter-dropdown{position:fixed;z-index:3000;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:10px;min-width:210px;max-width:300px}
+.col-filter-search{width:100%;padding:6px 10px;margin-bottom:6px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12.5px;box-sizing:border-box;outline:none;font-family:inherit}
+.col-filter-search:focus{border-color:#3B6BA5}
+.col-filter-list{max-height:220px;overflow-y:auto;margin-bottom:8px}
+.col-filter-item{display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12.5px;cursor:pointer;border-radius:5px;color:#374151;user-select:none}
+.col-filter-item:hover{background:#f1f5f9}
+.col-filter-item input[type=checkbox]{cursor:pointer;accent-color:#3B6BA5;flex-shrink:0}
+.col-filter-all{font-weight:700;color:#1A2332;border-bottom:1px solid #e2e8f0;margin-bottom:3px;padding-bottom:6px}
+.col-filter-footer{display:flex;gap:6px;margin-top:4px}
+.col-filter-ok{flex:1;padding:6px;background:#3B6BA5;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.col-filter-ok:hover{background:#2d5490}
+.col-filter-clear{padding:6px 10px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit}
+.col-filter-clear:hover{background:#e2e8f0}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  var table = document.getElementById('adminTable');
+  if (!table) return;
+  var ths = Array.from(table.querySelectorAll('thead th'));
+  var tbody = table.querySelector('tbody');
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  var activeFilters = {};
+  var activeDropdown = null;
+
+  function cellText(c){ return (c.innerText||c.textContent||'').trim().replace(/\s+/g,' '); }
+
+  function colValues(ci){
+    var vals={};
+    rows.forEach(function(r){ var c=r.cells[ci]; vals[c?cellText(c):'—']=true; });
+    return Object.keys(vals).sort(function(a,b){ if(a==='—')return 1;if(b==='—')return -1;return a.localeCompare(b,'mn'); });
+  }
+
+  function updateExportBtn(){
+    var visible=rows.filter(function(r){return r.style.display!=='none';}).length;
+    var hasFilter=Object.keys(activeFilters).length>0;
+    var lbl=document.getElementById('adminExportLabel');
+    var sub=document.getElementById('adminExportSub');
+    if(lbl) lbl.textContent='Excel татах ('+(hasFilter?visible+' шүүсэн':'{{ total }} бүртгэл')+')';
+    if(sub) sub.textContent=hasFilter?visible+' харагдаж буй бүртгэлийг татна':'Бүх бүртгэлийг форматтай Excel файлаар татаж авна';
+  }
+
+  function applyFilters(){
+    rows.forEach(function(row){
+      var show=true;
+      Object.keys(activeFilters).forEach(function(ci){
+        var allowed=activeFilters[ci];
+        if(!allowed||allowed.size===0) return;
+        var cell=row.cells[parseInt(ci)];
+        if(!allowed.has(cell?cellText(cell):'—')) show=false;
+      });
+      row.style.display=show?'':'none';
+    });
+    var visible=rows.filter(function(r){return r.style.display!=='none';}).length;
+    var el=document.querySelector('#adminTableCard .admin-tbl-count');
+    if(el) el.textContent=visible;
+    var bar=document.getElementById('adminClearBar');
+    if(bar) bar.style.display=Object.keys(activeFilters).length>0?'flex':'none';
+    updateExportBtn();
+  }
+
+  function closeDropdown(){ if(activeDropdown){activeDropdown.remove();activeDropdown=null;} }
+
+  function openDropdown(ci, iconEl){
+    closeDropdown();
+    var vals=colValues(ci);
+    var current=activeFilters[ci]||new Set(vals);
+    var box=document.createElement('div'); box.className='col-filter-dropdown';
+    var srch=document.createElement('input'); srch.className='col-filter-search'; srch.placeholder='Хайх...'; srch.type='text'; box.appendChild(srch);
+    var allLbl=document.createElement('label'); allLbl.className='col-filter-item col-filter-all';
+    var allCb=document.createElement('input'); allCb.type='checkbox'; allCb.checked=!activeFilters[ci]||current.size>=vals.length;
+    allLbl.appendChild(allCb); allLbl.appendChild(document.createTextNode(' Бүгдийг сонгох')); box.appendChild(allLbl);
+    var list=document.createElement('div'); list.className='col-filter-list';
+    vals.forEach(function(v){
+      var lbl=document.createElement('label'); lbl.className='col-filter-item';
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.value=v; cb.checked=!activeFilters[ci]||current.has(v);
+      lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' '+(v||'(хоосон)'))); list.appendChild(lbl);
+    });
+    box.appendChild(list);
+    var footer=document.createElement('div'); footer.className='col-filter-footer';
+    var okBtn=document.createElement('button'); okBtn.textContent='OK'; okBtn.className='col-filter-ok';
+    var clrBtn=document.createElement('button'); clrBtn.textContent='Цэвэрлэх'; clrBtn.className='col-filter-clear';
+    footer.appendChild(clrBtn); footer.appendChild(okBtn); box.appendChild(footer);
+    srch.addEventListener('input',function(){ var q=this.value.toLowerCase(); list.querySelectorAll('label').forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';}); });
+    allCb.addEventListener('change',function(){ list.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=allCb.checked;}); });
+    list.addEventListener('change',function(){ allCb.checked=Array.from(list.querySelectorAll('input[type=checkbox]')).every(function(c){return c.checked;}); });
+    okBtn.addEventListener('click',function(){
+      var checked=new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c){return c.value;}));
+      if(checked.size>=vals.length){delete activeFilters[ci];}else{activeFilters[ci]=checked;}
+      applyFilters(); updateIcons(); closeDropdown();
+    });
+    clrBtn.addEventListener('click',function(){ delete activeFilters[ci]; applyFilters(); updateIcons(); closeDropdown(); });
+    var rect=iconEl.getBoundingClientRect();
+    box.style.top=(rect.bottom+4)+'px'; box.style.left=Math.min(rect.left,window.innerWidth-320)+'px';
+    document.body.appendChild(box); activeDropdown=box; srch.focus();
+    setTimeout(function(){ document.addEventListener('click',function h(e){ if(!box.contains(e.target)&&e.target!==iconEl){closeDropdown();document.removeEventListener('click',h);} }); },10);
+  }
+
+  function updateIcons(){
+    ths.forEach(function(th,i){
+      var icon=th.querySelector('.col-filter-icon'); if(!icon) return;
+      icon.classList.toggle('col-filter-icon-active',!!(activeFilters[i]&&activeFilters[i].size>0));
+    });
+  }
+
+  // Add filter icon to all columns except Д/д (col 0)
+  ths.forEach(function(th,i){
+    if(i===0) return;
+    var icon=document.createElement('span'); icon.className='col-filter-icon'; icon.title='Шүүлт';
+    icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px;display:block"><polyline points="6 9 12 15 18 9"/></svg>';
+    th.style.whiteSpace='nowrap'; th.appendChild(icon);
+    icon.addEventListener('click',function(e){e.stopPropagation();openDropdown(i,icon);});
+  });
+
+  // Clear-all bar
+  var card=document.getElementById('adminTableCard');
+  if(card){
+    var bar=document.createElement('div'); bar.id='adminClearBar';
+    bar.style.cssText='display:none;padding:8px 20px;background:#fffbeb;border-bottom:1px solid #fde68a;align-items:center;gap:10px;font-size:13px';
+    bar.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="#D4800A" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>'
+      +'<span style="color:#92400e;font-weight:600">Баганын шүүлт идэвхтэй байна</span>'
+      +'<button onclick="adminClearAll()" style="margin-left:auto;padding:4px 12px;background:#D4800A;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Бүх шүүлт арилгах</button>';
+    var sc=card.querySelector('.table-scroll'); if(sc) card.insertBefore(bar,sc);
+  }
+
+  window.adminClearAll=function(){ Object.keys(activeFilters).forEach(function(k){delete activeFilters[k];}); applyFilters(); updateIcons(); };
+
+  // Excel export: filtered rows if filters active, else full server export
+  var headers=['Д/д','Мерчантын нэр','Посын сериал','Хэлтэс','Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал','Хяналтын үр дүн','Буцаасан огноо'];
+  window.adminExcelDownload=function(){
+    var hasFilter=Object.keys(activeFilters).length>0;
+    if(!hasFilter){ window.location.href='{{ url_for("export") }}'; return; }
+    var visibleRows=rows.filter(function(r){return r.style.display!=='none';});
+    var data=[headers];
+    visibleRows.forEach(function(row){
+      var rowData=[];
+      Array.from(row.cells).forEach(function(cell){ rowData.push(cellText(cell)); });
+      data.push(rowData);
+    });
+    var ws=XLSX.utils.aoa_to_sheet(data);
+    var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Бүртгэл');
+    XLSX.writeFile(wb,'geree_filtered_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  };
+})();
+</script>
 
 {% endblock %}

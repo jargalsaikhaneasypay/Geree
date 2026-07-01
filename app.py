@@ -1066,8 +1066,14 @@ def dashboard():
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
 
-    base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
-    base_params = [d_from, d_to]
+    # For year period use SUBSTRING match so dates like '2026/01/05' (non-ISO) are included
+    if period == 'year':
+        year_str  = d_from[:4]
+        base_cond = "WHERE (pos_issue_date IS NULL OR pos_issue_date = '' OR SUBSTRING(pos_issue_date, 1, 4) = %s)"
+        base_params = [year_str]
+    else:
+        base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
+        base_params = [d_from, d_to]
     if dept:
         base_cond  += " AND department = %s"
         base_params.append(dept)

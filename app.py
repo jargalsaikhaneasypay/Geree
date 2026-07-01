@@ -1075,10 +1075,14 @@ def dashboard():
         base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
         base_params = [d_from, d_to]
     if dept:
-        base_cond  += " AND department = %s"
+        if employee:
+            # When employee is also selected, include records with NULL/empty dept
+            base_cond += " AND (department = %s OR department IS NULL OR department = '')"
+        else:
+            base_cond += " AND department = %s"
         base_params.append(dept)
     if employee:
-        base_cond  += " AND issued_by = %s"
+        base_cond += " AND issued_by = %s"
         base_params.append(employee)
 
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)

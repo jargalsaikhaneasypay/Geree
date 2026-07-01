@@ -1066,7 +1066,7 @@ def dashboard():
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
 
-    base_cond   = "WHERE pos_issue_date BETWEEN %s AND %s"
+    base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
     base_params = [d_from, d_to]
     if dept:
         base_cond  += " AND department = %s"

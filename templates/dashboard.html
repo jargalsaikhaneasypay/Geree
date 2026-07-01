@@ -322,32 +322,48 @@ document.getElementById('dbForm').addEventListener('submit', function() {
   <!-- Donut: On time vs Overdue -->
   <div class="card db-chart-card">
     <h3 class="db-chart-title">Хугацааны харьцаа</h3>
-    {% if total > 0 %}
+    {% if total_all > 0 %}
+    {% set d_total = total + hoosoon_count %}
+    {% set r = 46 %}
+    {% set circ = 2 * 3.14159 * r %}
+    {% set on_pct_d = (on_time       / d_total * 100) | round(1) if d_total else 0 %}
+    {% set ov_pct_d = (overdue       / d_total * 100) | round(1) if d_total else 0 %}
+    {% set h_pct_d  = (hoosoon_count / d_total * 100) | round(1) if d_total else 0 %}
+    {% set on_dash  = (on_pct_d / 100 * circ) | round(2) %}
+    {% set ov_dash  = (ov_pct_d / 100 * circ) | round(2) %}
+    {% set h_dash   = (h_pct_d  / 100 * circ) | round(2) %}
+    {% set on_deg   = on_pct_d / 100 * 360 %}
+    {% set ov_deg   = ov_pct_d / 100 * 360 %}
     <div class="db-donut-wrap">
       <svg class="db-donut" viewBox="0 0 120 120">
-        {% set r = 46 %}
-        {% set circ = 2 * 3.14159 * r %}
-        {% set on_dash = (on_time_pct / 100 * circ) | round(2) %}
-        {% set ov_dash = (overdue_pct / 100 * circ) | round(2) %}
-        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#FDECEA" stroke-width="14"/>
-        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#D5F5E3" stroke-width="14"
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#F3F4F6" stroke-width="14"/>
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#1A7F4F" stroke-width="14"
                 stroke-dasharray="{{ on_dash }} {{ circ }}"
-                stroke-dashoffset="{{ circ * 0.25 }}"
-                transform="rotate(-90 60 60)"
-                style="transition:stroke-dasharray .6s ease"/>
-        <text x="60" y="56" text-anchor="middle" font-size="18" font-weight="700" fill="#1A2332">{{ total }}</text>
-        <text x="60" y="70" text-anchor="middle" font-size="9"  fill="#8896A7">нийт</text>
+                transform="rotate(-90 60 60)"/>
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#C0392B" stroke-width="14"
+                stroke-dasharray="{{ ov_dash }} {{ circ }}"
+                transform="rotate({{ (-90 + on_deg) | round(2) }} 60 60)"/>
+        <circle cx="60" cy="60" r="{{ r }}" fill="none" stroke="#6B7280" stroke-width="14"
+                stroke-dasharray="{{ h_dash }} {{ circ }}"
+                transform="rotate({{ (-90 + on_deg + ov_deg) | round(2) }} 60 60)"/>
+        <text x="60" y="56" text-anchor="middle" font-size="18" font-weight="700" fill="#1A2332">{{ d_total }}</text>
+        <text x="60" y="70" text-anchor="middle" font-size="9" fill="#8896A7">нийт</text>
       </svg>
       <div class="db-donut-legend">
         <div class="db-legend-item">
           <span class="db-legend-dot" style="background:#1A7F4F"></span>
           <span>Хугацаандаа</span>
-          <strong>{{ on_time }} ({{ on_time_pct }}%)</strong>
+          <strong>{{ on_time }} ({{ on_pct_d }}%)</strong>
         </div>
         <div class="db-legend-item">
           <span class="db-legend-dot" style="background:#C0392B"></span>
           <span>Хугацаа хэтэрсэн</span>
-          <strong>{{ overdue }} ({{ overdue_pct }}%)</strong>
+          <strong>{{ overdue }} ({{ ov_pct_d }}%)</strong>
+        </div>
+        <div class="db-legend-item">
+          <span class="db-legend-dot" style="background:#6B7280"></span>
+          <span>Хоосон</span>
+          <strong>{{ hoosoon_count }} ({{ h_pct_d }}%)</strong>
         </div>
       </div>
     </div>

@@ -126,16 +126,32 @@
     <table class="data-table data-table-sm" id="adminTable">
       <thead>
         <tr>
-          <th>Д/д</th>
-          <th>Мерчантын нэр</th>
-          <th>Посын сериал</th>
-          <th>Хэлтэс</th>
-          <th>Ирэх ёстой огноо</th>
-          <th>Хүлээн авсан огноо</th>
-          <th>Хэтэрсэн хоног</th>
-          <th>Ангилал</th>
-          <th>Хяналтын үр дүн</th>
-          <th>Буцаасан огноо</th>
+          <th style="min-width:46px">Д/д</th>
+          <th style="min-width:180px">Мерчантын нэр</th>
+          <th style="min-width:130px">Посын сериал</th>
+          <th style="min-width:120px">Мерчантын дугаар</th>
+          <th style="min-width:120px">Терминалын дугаар</th>
+          <th style="min-width:90px">Төлөв</th>
+          <th style="min-width:110px">Пос огноо</th>
+          <th style="min-width:100px">Утас</th>
+          <th style="min-width:130px">Мерчантын хэлбэр</th>
+          <th style="min-width:140px">Гаргасан ажилтан</th>
+          <th style="min-width:110px">Хэлтэс</th>
+          <th style="min-width:120px">Ирэх ёстой огноо</th>
+          <th style="min-width:120px">Хүлээн авсан огноо</th>
+          <th style="min-width:90px">Хэтэрсэн хоног</th>
+          <th style="min-width:120px">Ангилал</th>
+          <th style="min-width:130px">Хяналтын үр дүн</th>
+          <th style="min-width:110px">Буцаасан огноо 1</th>
+          <th style="min-width:110px">Буцаасан огноо 2</th>
+          <th style="min-width:110px">Буцаасан огноо 3</th>
+          <th style="min-width:110px">Буцаасан огноо 4</th>
+          <th style="min-width:110px">Буцаасан огноо 5</th>
+          <th style="min-width:120px">Сүүлийн хяналт</th>
+          <th style="min-width:70px">Скан</th>
+          <th style="min-width:80px">Идэвхгүй</th>
+          <th style="min-width:150px">Шалтгаан</th>
+          <th style="min-width:180px">Тайлбар</th>
         </tr>
       </thead>
       <tbody>
@@ -144,6 +160,13 @@
           <td class="text-center fw-600">{{ c.dd }}</td>
           <td class="fw-500">{{ c.merchant_name or '—' }}</td>
           <td class="mono">{{ c.pos_serial or '—' }}</td>
+          <td class="mono">{{ c.merchant_number or '—' }}</td>
+          <td class="mono">{{ c.terminal_number or '—' }}</td>
+          <td>{{ c.status or '—' }}</td>
+          <td class="text-center">{{ c.pos_issue_date or '—' }}</td>
+          <td>{{ c.phone or '—' }}</td>
+          <td>{{ c.merchant_type or '—' }}</td>
+          <td>{{ c.issued_by or '—' }}</td>
           <td>
             {% if c.department %}<span class="badge badge-dept">{{ c.department }}</span>{% else %}—{% endif %}
           </td>
@@ -153,14 +176,23 @@
             {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
           </td>
           <td>
-            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% else %}badge-danger{% endif %}">
-              {{ c.time_category }}
+            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% elif c.time_category == 'Хугацаа хэтэрсэн' %}badge-danger{% else %}badge-dept{% endif %}">
+              {{ c.time_category or 'Хоосон' }}
             </span>
           </td>
           <td>
             {% if c.first_inspection %}<span class="badge badge-inspection">{{ c.first_inspection }}</span>{% else %}—{% endif %}
           </td>
           <td class="text-center">{{ c.return_date or '—' }}</td>
+          <td class="text-center">{{ c.return_date_2 or '—' }}</td>
+          <td class="text-center">{{ c.return_date_3 or '—' }}</td>
+          <td class="text-center">{{ c.return_date_4 or '—' }}</td>
+          <td class="text-center">{{ c.return_date_5 or '—' }}</td>
+          <td class="text-center">{{ c.last_inspection_date or '—' }}</td>
+          <td class="text-center">{% if c.scanned == '1' %}✓{% else %}—{% endif %}</td>
+          <td class="text-center">{% if c.is_inactive == '1' %}<span class="badge badge-danger">Тийм</span>{% else %}—{% endif %}</td>
+          <td>{{ c.inactive_reason or '—' }}</td>
+          <td>{{ c.description or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -306,7 +338,7 @@
   window.adminClearAll=function(){ Object.keys(activeFilters).forEach(function(k){delete activeFilters[k];}); applyFilters(); updateIcons(); };
 
   // Excel export: filtered rows if filters active, else full server export
-  var headers=['Д/д','Мерчантын нэр','Посын сериал','Хэлтэс','Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал','Хяналтын үр дүн','Буцаасан огноо'];
+  var headers=['Д/д','Мерчантын нэр','Посын сериал','Мерчантын дугаар','Терминалын дугаар','Төлөв','Пос огноо','Утас','Мерчантын хэлбэр','Гаргасан ажилтан','Хэлтэс','Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал','Хяналтын үр дүн','Буцаасан огноо 1','Буцаасан огноо 2','Буцаасан огноо 3','Буцаасан огноо 4','Буцаасан огноо 5','Сүүлийн хяналт','Скан','Идэвхгүй','Шалтгаан','Тайлбар'];
   window.adminExcelDownload=function(){
     var hasFilter=Object.keys(activeFilters).length>0;
     if(!hasFilter){ window.location.href='{{ url_for("export") }}'; return; }

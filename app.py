@@ -1106,7 +1106,7 @@ def dashboard():
     max_overdue = max(overdue_days_list) if overdue_days_list else 0
 
     complete      = sum(1 for r in rows if r['first_inspection'] in ('1.Бүрэн', '3.Салбар дээр архивлагдсан/бүрэн'))
-    returned      = sum(1 for r in rows if r['first_inspection'] in ('2.Бүрдэл дутуу', 'Бүртгэл буруу/дутуу', 'Салбар дээр архивлагдсан/дутуу'))
+    returned      = sum(1 for r in rows if r['first_inspection'] in ('2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу'))
     tatag_count   = sum(1 for r in rows if r['first_inspection'] == '7.Татагдсан')
     not_received  = sum(1 for r in rows if not r['first_inspection'])
     not_received_rows = [r for r in rows if not r['received_date']]

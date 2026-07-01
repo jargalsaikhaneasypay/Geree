@@ -1105,9 +1105,9 @@ def dashboard():
     avg_overdue = round(sum(overdue_days_list) / len(overdue_days_list), 1) if overdue_days_list else 0
     max_overdue = max(overdue_days_list) if overdue_days_list else 0
 
-    COMPLETE_VALS = {'Бүрэн', 'Салбар дээр архивлагдсан/бүрэн'}
-    complete      = sum(1 for r in rows if r['first_inspection'] in COMPLETE_VALS)
-    returned      = sum(1 for r in rows if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5'])
+    complete      = sum(1 for r in rows if r['first_inspection'] == '1.Бүрэн')
+    returned      = sum(1 for r in rows if r['first_inspection'] and r['first_inspection'] != '7.Татагдсан')
+    tatag_count   = sum(1 for r in rows if r['first_inspection'] == '7.Татагдсан')
     not_received_rows = [r for r in rows if not r['received_date']]
     not_received = len(not_received_rows)
 
@@ -1128,6 +1128,7 @@ def dashboard():
     incomplete = total - complete
     complete_pct = round(complete / total * 100, 1) if total else 0
     returned_pct = round(returned / total * 100, 1) if total else 0
+    tatag_pct    = round(tatag_count / total * 100, 1) if total else 0
 
     insp_counts = {}
     for r in rows:
@@ -1187,6 +1188,7 @@ def dashboard():
         on_time_pct=on_time_pct, overdue_pct=overdue_pct,
         avg_overdue=avg_overdue, max_overdue=max_overdue,
         complete=complete, incomplete=incomplete, returned=returned,
+        tatag_count=tatag_count, tatag_pct=tatag_pct,
         not_received=not_received, nr_avg_overdue=nr_avg_overdue, nr_max_overdue=nr_max_overdue,
         complete_pct=complete_pct, returned_pct=returned_pct,
         insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,

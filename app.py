@@ -994,10 +994,11 @@ def dashboard():
     sel_q     = request.args.get('sel_q', '')
     sel_half  = request.args.get('sel_half', '')
     sel_year  = request.args.get('sel_year', '')
-    dept      = request.args.get('dept', '')
-    employee  = request.args.get('employee', '')
-    date_from = request.args.get('date_from', '')
-    date_to   = request.args.get('date_to', '')
+    dept          = request.args.get('dept', '')
+    employee      = request.args.get('employee', '')
+    status_filter = request.args.get('status_filter', '')
+    date_from     = request.args.get('date_from', '')
+    date_to       = request.args.get('date_to', '')
 
     if period == 'day':
         d_from = today.isoformat()
@@ -1083,6 +1084,9 @@ def dashboard():
     if employee:
         base_cond += " AND issued_by = %s"
         base_params.append(employee)
+    if status_filter:
+        base_cond += " AND COALESCE(status,'') = %s"
+        base_params.append(status_filter)
 
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
     all_rows = cur.fetchall()
@@ -1179,7 +1183,8 @@ def dashboard():
         sel_month=sel_month, sel_q=sel_q, sel_half=sel_half, sel_year=sel_year,
         date_from=date_from, date_to=date_to,
         d_from=d_from, d_to=d_to,
-        departments=DEPARTMENTS, all_employees=all_employees,
+        departments=DEPARTMENTS, statuses=STATUSES, all_employees=all_employees,
+        status_filter=status_filter,
         years=years, today=today.isoformat(),
         months_mn=MONTHS_MN,
         total=total, total_all=total_all, hoosoon_count=hoosoon_count,

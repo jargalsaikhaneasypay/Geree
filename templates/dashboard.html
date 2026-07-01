@@ -507,6 +507,56 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 
 </div>
 
+<!-- Contract list table -->
+{% if contracts %}
+<div class="card table-card" style="margin-top:18px">
+  <div style="padding:16px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <h3 style="font-size:13.5px;font-weight:700;margin:0">Гэрээний жагсаалт</h3>
+    <span style="font-size:12px;color:var(--text-muted)">Нийт <strong>{{ contracts|length }}</strong> бүртгэл</span>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table" style="font-size:13px">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Мерчантын нэр</th>
+          <th>Терминал №</th>
+          <th>Пос серийн №</th>
+          <th>Пос огноо</th>
+          <th>Ангилал</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contracts %}
+        {% if c.time_category == 'Хугацаандаа' %}
+          {% set cat_class = 'badge-success' %}
+        {% elif c.time_category == 'Хугацаа хэтэрсэн' %}
+          {% set cat_class = 'badge-danger' %}
+        {% elif c.is_inactive == '1' %}
+          {% set cat_class = 'badge-inspection' %}
+        {% else %}
+          {% set cat_class = 'badge-dept' %}
+        {% endif %}
+        <tr>
+          <td class="text-center fw-600">{{ loop.index }}</td>
+          <td class="fw-500">{{ c.merchant_name or '—' }}</td>
+          <td>{{ c.terminal_number or '—' }}</td>
+          <td>{{ c.pos_serial or '—' }}</td>
+          <td>{{ c.pos_issue_date or '—' }}</td>
+          <td>
+            <span class="badge {{ cat_class }}">
+              {% if c.is_inactive == '1' %}Буцаасан
+              {% else %}{{ c.time_category or 'Хоосон' }}{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <style>
 /* ── Filter bar ── */
 .db-filter-bar {

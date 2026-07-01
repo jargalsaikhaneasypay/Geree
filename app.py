@@ -1008,50 +1008,40 @@ def dashboard():
         if sel_month:
             try:
                 y, m = map(int, sel_month.split('-'))
-                d_from = dt_date(y, m, 1).isoformat()
-                d_to   = dt_date(y, m, calendar.monthrange(y, m)[1]).isoformat()
             except Exception:
-                d_from = today.replace(day=1).isoformat()
-                d_to   = today.isoformat()
+                y, m = today.year, today.month
         else:
-            d_from = today.replace(day=1).isoformat()
-            d_to   = today.isoformat()
+            y, m = today.year, today.month
+        d_from = dt_date(y, m, 1).isoformat()
+        d_to   = dt_date(y, m, calendar.monthrange(y, m)[1]).isoformat()
 
     elif period == 'quarter':
         if sel_q:
             try:
                 parts = sel_q.split('-Q')
                 y = int(parts[0]); q = int(parts[1])
-                m_start = (q - 1) * 3 + 1
-                m_end   = m_start + 2
-                d_from  = dt_date(y, m_start, 1).isoformat()
-                d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
             except Exception:
-                q_start = ((today.month - 1) // 3) * 3 + 1
-                d_from  = today.replace(month=q_start, day=1).isoformat()
-                d_to    = today.isoformat()
+                y = today.year; q = (today.month - 1) // 3 + 1
         else:
-            q_start = ((today.month - 1) // 3) * 3 + 1
-            d_from  = today.replace(month=q_start, day=1).isoformat()
-            d_to    = today.isoformat()
+            y = today.year; q = (today.month - 1) // 3 + 1
+        m_start = (q - 1) * 3 + 1
+        m_end   = m_start + 2
+        d_from  = dt_date(y, m_start, 1).isoformat()
+        d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
 
     elif period == 'halfyear':
         if sel_half:
             try:
                 parts = sel_half.split('-H')
                 y = int(parts[0]); h = int(parts[1])
-                m_start = 1 if h == 1 else 7
-                m_end   = 6 if h == 1 else 12
-                d_from  = dt_date(y, m_start, 1).isoformat()
-                d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
             except Exception:
-                h_start = 1 if today.month <= 6 else 7
-                d_from  = today.replace(month=h_start, day=1).isoformat()
-                d_to    = today.isoformat()
+                y = today.year; h = 1 if today.month <= 6 else 2
         else:
-            h_start = 1 if today.month <= 6 else 7
-            d_from  = today.replace(month=h_start, day=1).isoformat()
-            d_to    = today.isoformat()
+            y = today.year; h = 1 if today.month <= 6 else 2
+        m_start = 1 if h == 1 else 7
+        m_end   = 6 if h == 1 else 12
+        d_from  = dt_date(y, m_start, 1).isoformat()
+        d_to    = dt_date(y, m_end, calendar.monthrange(y, m_end)[1]).isoformat()
 
     elif period == 'year':
         y = int(sel_year) if sel_year else today.year
@@ -1063,8 +1053,8 @@ def dashboard():
         d_to   = date_to
 
     else:
-        d_from = today.replace(day=1).isoformat()
-        d_to   = today.isoformat()
+        d_from = dt_date(today.year, today.month, 1).isoformat()
+        d_to   = dt_date(today.year, today.month, calendar.monthrange(today.year, today.month)[1]).isoformat()
         period = 'month'
 
     conn = get_db()

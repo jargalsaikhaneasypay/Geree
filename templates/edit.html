@@ -226,7 +226,8 @@ document.getElementById('issued_by').addEventListener('blur', function() {
   const name = this.value.trim();
   if (!name) return;
   const deptSel = document.getElementById('department');
-  fetch('/api/manager-dept?name=' + encodeURIComponent(name))
+  const posDate = document.getElementById('pos_issue_date').value;
+  fetch('/api/manager-dept?name=' + encodeURIComponent(name) + '&pos_date=' + encodeURIComponent(posDate))
     .then(r => r.json())
     .then(data => {
       if (data.department && !deptSel.value) {

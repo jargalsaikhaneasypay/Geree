@@ -89,10 +89,24 @@ def init_db():
     cur.execute('''
         CREATE TABLE IF NOT EXISTS managers (
             id         SERIAL PRIMARY KEY,
-            name       TEXT UNIQUE NOT NULL,
-            department TEXT NOT NULL
+            name       TEXT NOT NULL,
+            department TEXT NOT NULL,
+            start_date DATE NOT NULL DEFAULT '2000-01-01'
         )
     ''')
+    # Migrate: add start_date column if it doesn't exist yet
+    cur.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS start_date DATE NOT NULL DEFAULT '2000-01-01'")
+    # Migrate: drop old single-name unique constraint, add (name, start_date) unique instead
+    cur.execute("ALTER TABLE managers DROP CONSTRAINT IF EXISTS managers_name_key")
+    cur.execute("""
+        DO $$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'managers_name_start_key'
+            ) THEN
+                ALTER TABLE managers ADD CONSTRAINT managers_name_start_key UNIQUE (name, start_date);
+            END IF;
+        END $$
+    """)
     conn.commit()
 
     # Migrate old data: both dates blank → Хоосон
@@ -189,15 +203,82 @@ def root():
 @app.route('/list')
 @login_required
 def index():
+    import calendar as _cal
+    today = date.today()
+
+    search    = request.args.get('search', '').strip()
+    dept      = request.args.get('dept', '').strip()
+    cat       = request.args.get('cat', '').strip()
+    period    = request.args.get('period', '').strip()
+    sel_month = request.args.get('sel_month', '').strip()
+    sel_q     = request.args.get('sel_q', '').strip()
+    sel_half  = request.args.get('sel_half', '').strip()
+    sel_year  = request.args.get('sel_year', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to   = request.args.get('date_to', '').strip()
+
+    d_from = d_to = None
+    if period == 'day':
+        d_from = d_to = today.isoformat()
+    elif period == 'month':
+        if sel_month:
+            try:
+                y, m = map(int, sel_month.split('-'))
+                d_from = date(y, m, 1).isoformat()
+                d_to   = date(y, m, _cal.monthrange(y, m)[1]).isoformat()
+            except Exception:
+                d_from = today.replace(day=1).isoformat(); d_to = today.isoformat()
+        else:
+            d_from = today.replace(day=1).isoformat(); d_to = today.isoformat()
+    elif period == 'quarter':
+        if sel_q:
+            try:
+                y, q = int(sel_q.split('-Q')[0]), int(sel_q.split('-Q')[1])
+                ms = (q - 1) * 3 + 1; me = ms + 2
+                d_from = date(y, ms, 1).isoformat()
+                d_to   = date(y, me, _cal.monthrange(y, me)[1]).isoformat()
+            except Exception:
+                qs = ((today.month - 1) // 3) * 3 + 1
+                d_from = today.replace(month=qs, day=1).isoformat(); d_to = today.isoformat()
+        else:
+            qs = ((today.month - 1) // 3) * 3 + 1
+            d_from = today.replace(month=qs, day=1).isoformat(); d_to = today.isoformat()
+    elif period == 'halfyear':
+        if sel_half:
+            try:
+                y, h = int(sel_half.split('-H')[0]), int(sel_half.split('-H')[1])
+                ms = 1 if h == 1 else 7; me = 6 if h == 1 else 12
+                d_from = date(y, ms, 1).isoformat()
+                d_to   = date(y, me, _cal.monthrange(y, me)[1]).isoformat()
+            except Exception:
+                hs = 1 if today.month <= 6 else 7
+                d_from = today.replace(month=hs, day=1).isoformat(); d_to = today.isoformat()
+        else:
+            hs = 1 if today.month <= 6 else 7
+            d_from = today.replace(month=hs, day=1).isoformat(); d_to = today.isoformat()
+    elif period == 'year':
+        y = int(sel_year) if sel_year else today.year
+        d_from = date(y, 1, 1).isoformat(); d_to = date(y, 12, 31).isoformat()
+    elif period == 'custom' and date_from and date_to:
+        d_from = date_from; d_to = date_to
+
+    MONTHS_MN = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар',
+                 '7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар']
+
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    search = request.args.get('search', '').strip()
-    dept   = request.args.get('dept', '').strip()
-    cat    = request.args.get('cat', '').strip()
+    # Year range for selectors
+    cur.execute("SELECT MIN(SUBSTRING(pos_issue_date,1,4)) AS m FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
+    min_yr = cur.fetchone()['m']
+    min_year = int(min_yr) if min_yr else today.year
+    years = list(range(today.year, min_year - 1, -1))
 
     query  = 'SELECT * FROM contracts WHERE 1=1'
     params = []
+    if d_from and d_to:
+        query += ' AND pos_issue_date BETWEEN %s AND %s'
+        params.extend([d_from, d_to])
     if search:
         query += ' AND (merchant_name LIKE %s OR pos_serial LIKE %s OR merchant_number LIKE %s OR terminal_number LIKE %s)'
         like = f'%{search}%'
@@ -228,6 +309,12 @@ def index():
         contracts=contracts,
         departments=DEPARTMENTS,
         search=search, dept=dept, cat=cat,
+        period=period, sel_month=sel_month, sel_q=sel_q,
+        sel_half=sel_half, sel_year=sel_year,
+        date_from=date_from, date_to=date_to,
+        d_from=d_from or '', d_to=d_to or '',
+        years=years, months_mn=MONTHS_MN,
+        today=today.isoformat(),
         total=total, on_time=on_time, overdue=overdue
     )
 
@@ -589,9 +676,24 @@ def import_confirm():
         cur.execute('SELECT terminal_number FROM contracts WHERE terminal_number IS NOT NULL AND terminal_number != \'\'')
         existing_terminals = {r['terminal_number'] for r in cur.fetchall()}
 
-        # Pre-load manager→department map
-        cur.execute('SELECT name, department FROM managers')
-        mgr_map = {r['name']: r['department'] for r in cur.fetchall()}
+        # Pre-load manager history for date-based department lookup
+        cur.execute('SELECT name, department, start_date FROM managers ORDER BY name, start_date')
+        mgr_history = {}
+        for r in cur.fetchall():
+            mgr_history.setdefault(r['name'], []).append((r['start_date'], r['department']))
+
+        def get_dept_for_date(manager_name, pos_date_str):
+            if not manager_name or manager_name not in mgr_history:
+                return ''
+            try:
+                pos_d = datetime.strptime(pos_date_str[:10], '%Y-%m-%d').date() if pos_date_str else date.today()
+            except Exception:
+                pos_d = date.today()
+            best_dept, best_start = '', None
+            for start_d, dept in mgr_history[manager_name]:
+                if start_d <= pos_d and (best_start is None or start_d > best_start):
+                    best_start, best_dept = start_d, dept
+            return best_dept
 
         imported = 0
         skipped  = 0
@@ -623,9 +725,9 @@ def import_confirm():
                 issued_by            = gf(row, 'issued_by')
                 department           = gf(row, 'department')
 
-                # Auto-fill department from managers map if not in Excel
-                if issued_by and not department and issued_by in mgr_map:
-                    department = mgr_map[issued_by]
+                # Auto-fill department from manager history based on pos_issue_date
+                if issued_by and not department:
+                    department = get_dept_for_date(issued_by, pos_issue_date)
 
                 expected_date        = gf(row, 'expected_date')
                 received_date        = gf(row, 'received_date')
@@ -694,7 +796,7 @@ def import_confirm():
 def managers_list():
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute('SELECT * FROM managers ORDER BY name')
+    cur.execute('SELECT * FROM managers ORDER BY name, start_date')
     mgrs = cur.fetchall()
     cur.close()
     conn.close()
@@ -706,13 +808,14 @@ def managers_list():
 def managers_add():
     name = request.form.get('name', '').strip()
     dept = request.form.get('department', '').strip()
+    start_date = request.form.get('start_date', '').strip() or '2000-01-01'
     if not name or not dept:
         flash('Нэр болон хэлтэс шаардлагатай.', 'error')
         return redirect(url_for('managers_list'))
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute('INSERT INTO managers (name, department) VALUES (%s, %s)', (name, dept))
+        cur.execute('INSERT INTO managers (name, department, start_date) VALUES (%s, %s, %s)', (name, dept, start_date))
         conn.commit()
         cur.close()
         conn.close()
@@ -727,21 +830,15 @@ def managers_add():
 def managers_edit(mid):
     name = request.form.get('name', '').strip()
     dept = request.form.get('department', '').strip()
+    start_date = request.form.get('start_date', '').strip() or '2000-01-01'
     if not name or not dept:
         flash('Нэр болон хэлтэс шаардлагатай.', 'error')
         return redirect(url_for('managers_list'))
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Get current name before updating (in case name also changed)
-        cur.execute('SELECT name FROM managers WHERE id = %s', (mid,))
-        row = cur.fetchone()
-        old_name = row['name'] if row else name
-        cur.execute('UPDATE managers SET name = %s, department = %s WHERE id = %s',
-                    (name, dept, mid))
-        # Cascade department change to all contracts with matching issued_by
-        cur.execute('UPDATE contracts SET department = %s WHERE issued_by = %s',
-                    (dept, old_name))
+        cur.execute('UPDATE managers SET name = %s, department = %s, start_date = %s WHERE id = %s',
+                    (name, dept, start_date, mid))
         conn.commit()
         cur.close()
         conn.close()
@@ -768,11 +865,19 @@ def managers_delete(mid):
 @login_required
 def api_manager_dept():
     name = request.args.get('name', '').strip()
+    pos_date = request.args.get('pos_date', '').strip()
     if not name:
         return jsonify({'department': ''})
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute('SELECT department FROM managers WHERE name = %s', (name,))
+    if pos_date:
+        cur.execute('''
+            SELECT department FROM managers
+            WHERE name = %s AND start_date <= %s
+            ORDER BY start_date DESC LIMIT 1
+        ''', (name, pos_date))
+    else:
+        cur.execute('SELECT department FROM managers WHERE name = %s ORDER BY start_date DESC LIMIT 1', (name,))
     row = cur.fetchone()
     cur.close()
     conn.close()

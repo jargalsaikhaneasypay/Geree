@@ -33,7 +33,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-DEPARTMENTS = ['Борлуулалт', 'ХҮАжилтан', 'Салбар', 'Хөдөө орон нутаг']
+DEPARTMENTS = ['Борлуулалт', 'ХҮАжилтан', 'Салбар', 'Хө/орон нутаг']
 STATUSES = ['Гэрээ', 'Зарагдсан', 'Нэр шилжүүлэг', 'Түрээс']
 INSPECTION_RESULTS = [
     'Бүрэн',
@@ -127,6 +127,9 @@ def init_db():
     # Rename ХҮА → ХҮАжилтан in both tables
     cur.execute("UPDATE contracts SET department = 'ХҮАжилтан' WHERE department = 'ХҮА'")
     cur.execute("UPDATE managers  SET department = 'ХҮАжилтан' WHERE department = 'ХҮА'")
+    # Rename Хөдөө орон нутаг → Хө/орон нутаг in both tables
+    cur.execute("UPDATE contracts SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")
+    cur.execute("UPDATE managers  SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")
     conn.commit()
     cur.close()
     conn.close()

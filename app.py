@@ -1072,6 +1072,39 @@ def dashboard():
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
 
+    # Recalculate time_category daily: past-deadline contracts with no received_date → Хугацаа хэтэрсэн
+    cur.execute("""
+        UPDATE contracts
+        SET time_category = 'Хугацаа хэтэрсэн',
+            overdue_days  = (CURRENT_DATE - expected_date::date)
+        WHERE expected_date IS NOT NULL AND expected_date != ''
+          AND (received_date IS NULL OR received_date = '')
+          AND expected_date::date < CURRENT_DATE
+          AND (is_inactive IS NULL OR is_inactive != '1')
+    """)
+    # Not-yet-due with no received_date → Хоосон
+    cur.execute("""
+        UPDATE contracts
+        SET time_category = 'Хоосон', overdue_days = 0
+        WHERE expected_date IS NOT NULL AND expected_date != ''
+          AND (received_date IS NULL OR received_date = '')
+          AND expected_date::date >= CURRENT_DATE
+          AND (is_inactive IS NULL OR is_inactive != '1')
+    """)
+    # Both dates set: recalculate on_time / overdue
+    cur.execute("""
+        UPDATE contracts
+        SET overdue_days  = (received_date::date - expected_date::date),
+            time_category = CASE
+              WHEN (received_date::date - expected_date::date) <= 0 THEN 'Хугацаандаа'
+              ELSE 'Хугацаа хэтэрсэн'
+            END
+        WHERE expected_date IS NOT NULL AND expected_date != ''
+          AND received_date  IS NOT NULL AND received_date  != ''
+          AND (is_inactive IS NULL OR is_inactive != '1')
+    """)
+    conn.commit()
+
     # For year period use SUBSTRING match so dates like '2026/01/05' (non-ISO) are included
     if period == 'year':
         year_str  = d_from[:4]
@@ -1116,7 +1149,6 @@ def dashboard():
 
     complete      = sum(1 for r in rows if r['first_inspection'] in ('1.Бүрэн', '3.Салбар дээр архивлагдсан/бүрэн'))
     returned      = sum(1 for r in rows if r['first_inspection'] in ('2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу'))
-    tatag_count   = sum(1 for r in rows if r['first_inspection'] == '7.Татагдсан')
     not_received  = sum(1 for r in rows if not r['first_inspection'])
     not_received_rows = [r for r in rows if not r['received_date']]
 
@@ -1137,7 +1169,6 @@ def dashboard():
     incomplete = total - complete
     complete_pct = round(complete / total * 100, 1) if total else 0
     returned_pct = round(returned / total * 100, 1) if total else 0
-    tatag_pct    = round(tatag_count / total * 100, 1) if total else 0
 
     insp_counts = {}
     for r in rows:
@@ -1198,7 +1229,6 @@ def dashboard():
         on_time_pct=on_time_pct, overdue_pct=overdue_pct,
         avg_overdue=avg_overdue, max_overdue=max_overdue,
         complete=complete, incomplete=incomplete, returned=returned,
-        tatag_count=tatag_count, tatag_pct=tatag_pct,
         not_received=not_received, nr_avg_overdue=nr_avg_overdue, nr_max_overdue=nr_max_overdue,
         complete_pct=complete_pct, returned_pct=returned_pct,
         insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,

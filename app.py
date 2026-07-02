@@ -1012,9 +1012,9 @@ def dashboard():
     sel_q     = request.args.get('sel_q', '')
     sel_half  = request.args.get('sel_half', '')
     sel_year  = request.args.get('sel_year', '')
-    dept          = request.args.get('dept', '')
-    employee      = request.args.get('employee', '')
-    status_filter = request.args.get('status_filter', '')
+    depts          = request.args.getlist('dept')
+    employees      = request.args.getlist('employee')
+    status_filters = request.args.getlist('status_filter')
     date_from     = request.args.get('date_from', '')
     date_to       = request.args.get('date_to', '')
 
@@ -1128,19 +1128,15 @@ def dashboard():
     else:
         base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
         base_params = [d_from, d_to]
-    if dept:
-        if employee:
-            # When employee is also selected, include records with NULL/empty dept
-            base_cond += " AND (department = %s OR department IS NULL OR department = '')"
-        else:
-            base_cond += " AND department = %s"
-        base_params.append(dept)
-    if employee:
-        base_cond += " AND issued_by = %s"
-        base_params.append(employee)
-    if status_filter:
-        base_cond += " AND COALESCE(status,'') = %s"
-        base_params.append(status_filter)
+    if depts:
+        base_cond += " AND department IN ({})".format(','.join(['%s']*len(depts)))
+        base_params.extend(depts)
+    if employees:
+        base_cond += " AND issued_by IN ({})".format(','.join(['%s']*len(employees)))
+        base_params.extend(employees)
+    if status_filters:
+        base_cond += " AND COALESCE(status,'') IN ({})".format(','.join(['%s']*len(status_filters)))
+        base_params.extend(status_filters)
 
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
     EXCLUDE_INSP = {'7.Татагдсан', '6.Татагдсан'}
@@ -1187,6 +1183,7 @@ def dashboard():
     incomplete = total - complete
     complete_pct = round(complete / total * 100, 1) if total else 0
     returned_pct = round(returned / total * 100, 1) if total else 0
+    performance_pct = round((on_time_pct + complete_pct) / 2, 1)
 
     insp_counts = {}
     for r in rows:
@@ -1234,12 +1231,12 @@ def dashboard():
     conn.close()
 
     return render_template('dashboard.html',
-        period=period, dept=dept, employee=employee,
+        period=period, depts=depts, employees=employees,
         sel_month=sel_month, sel_q=sel_q, sel_half=sel_half, sel_year=sel_year,
         date_from=date_from, date_to=date_to,
         d_from=d_from, d_to=d_to,
         departments=dash_departments, statuses=STATUSES, all_employees=all_employees,
-        status_filter=status_filter,
+        status_filters=status_filters,
         years=years, today=today.isoformat(),
         months_mn=MONTHS_MN,
         total=total, total_all=total_all, hoosoon_count=hoosoon_count,
@@ -1250,6 +1247,7 @@ def dashboard():
         returned_repaired=returned_repaired, returned_not_repaired=returned_not_repaired,
         not_received=not_received, nr_avg_overdue=nr_avg_overdue, nr_max_overdue=nr_max_overdue,
         complete_pct=complete_pct, returned_pct=returned_pct,
+        performance_pct=performance_pct,
         insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,
         inactive_count=inactive_count,
         contracts=sorted(

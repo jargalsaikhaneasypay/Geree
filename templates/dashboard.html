@@ -117,31 +117,86 @@
 
     </div>
 
-    <!-- Row 3: Dept + Employee + Submit -->
+    <!-- Row 3: Multi-select filters -->
     <div class="db-filter-row">
       <label class="db-filter-label">Шүүлт</label>
-      <div class="db-sel-inline" style="flex-wrap:wrap;gap:8px">
-        <select name="dept" class="select-filter">
-          <option value="">Бүх хэлтэс</option>
-          {% for d in departments %}
-            <option value="{{ d }}" {% if dept==d %}selected{% endif %}>{{ d }}</option>
-          {% endfor %}
-        </select>
+      <div class="db-sel-inline" style="flex-wrap:wrap;gap:8px;align-items:center">
 
-        <select name="employee" id="employeeSelect" class="select-filter">
-          <option value="">Бүх ажилтан</option>
-          {% for emp in all_employees %}
-            <option value="{{ emp }}" data-dept="{{ mgr_dept_map.get(emp, '') }}"
-                    {% if employee==emp %}selected{% endif %}>{{ emp }}</option>
-          {% endfor %}
-        </select>
+        <!-- Dept multi-select -->
+        <div class="ms-wrap" id="ms_dept">
+          <button type="button" id="ms_dept_btn" class="ms-trigger" onclick="msOpen('ms_dept',event)">
+            <span id="ms_dept_lbl">{% if depts %}{{ depts|length }} хэлтэс{% else %}Бүх хэлтэс{% endif %}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="ms-panel" id="ms_dept_panel">
+            <label class="ms-item ms-all-item">
+              <input type="checkbox" id="ms_dept_all" {% if not depts %}checked{% endif %}
+                     onchange="msAllChange('ms_dept','Бүх хэлтэс');msFilterEmp()"> Бүгдийг сонгох
+            </label>
+            {% for d in departments %}
+            <label class="ms-item">
+              <input type="checkbox" name="dept" value="{{ d }}" class="ms-cb"
+                     {% if d in depts %}checked{% endif %}
+                     onchange="msItemChange('ms_dept','Бүх хэлтэс');msFilterEmp()"> {{ d }}
+            </label>
+            {% endfor %}
+            <div class="ms-footer">
+              <button type="button" class="ms-clear" onclick="msClear('ms_dept','Бүх хэлтэс');msFilterEmp()">Цэвэрлэх</button>
+              <button type="submit" class="ms-apply">Хэрэглэх</button>
+            </div>
+          </div>
+        </div>
 
-        <select name="status_filter" class="select-filter">
-          <option value="">Бүх төлөв</option>
-          {% for s in statuses %}
-            <option value="{{ s }}" {% if status_filter==s %}selected{% endif %}>{{ s }}</option>
-          {% endfor %}
-        </select>
+        <!-- Employee multi-select -->
+        <div class="ms-wrap" id="ms_emp">
+          <button type="button" id="ms_emp_btn" class="ms-trigger" onclick="msOpen('ms_emp',event)">
+            <span id="ms_emp_lbl">{% if employees %}{{ employees|length }} ажилтан{% else %}Бүх ажилтан{% endif %}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="ms-panel" id="ms_emp_panel">
+            <label class="ms-item ms-all-item">
+              <input type="checkbox" id="ms_emp_all" {% if not employees %}checked{% endif %}
+                     onchange="msAllChange('ms_emp','Бүх ажилтан')"> Бүгдийг сонгох
+            </label>
+            {% for emp in all_employees %}
+            <label class="ms-item ms-emp-item">
+              <input type="checkbox" name="employee" value="{{ emp }}" class="ms-cb"
+                     data-dept="{{ mgr_dept_map.get(emp, '') }}"
+                     {% if emp in employees %}checked{% endif %}
+                     onchange="msItemChange('ms_emp','Бүх ажилтан')"> {{ emp }}
+            </label>
+            {% endfor %}
+            <div class="ms-footer">
+              <button type="button" class="ms-clear" onclick="msClear('ms_emp','Бүх ажилтан')">Цэвэрлэх</button>
+              <button type="submit" class="ms-apply">Хэрэглэх</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status multi-select -->
+        <div class="ms-wrap" id="ms_status">
+          <button type="button" id="ms_status_btn" class="ms-trigger" onclick="msOpen('ms_status',event)">
+            <span id="ms_status_lbl">{% if status_filters %}{{ status_filters|length }} төлөв{% else %}Бүх төлөв{% endif %}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="ms-panel" id="ms_status_panel">
+            <label class="ms-item ms-all-item">
+              <input type="checkbox" id="ms_status_all" {% if not status_filters %}checked{% endif %}
+                     onchange="msAllChange('ms_status','Бүх төлөв')"> Бүгдийг сонгох
+            </label>
+            {% for s in statuses %}
+            <label class="ms-item">
+              <input type="checkbox" name="status_filter" value="{{ s }}" class="ms-cb"
+                     {% if s in status_filters %}checked{% endif %}
+                     onchange="msItemChange('ms_status','Бүх төлөв')"> {{ s }}
+            </label>
+            {% endfor %}
+            <div class="ms-footer">
+              <button type="button" class="ms-clear" onclick="msClear('ms_status','Бүх төлөв')">Цэвэрлэх</button>
+              <button type="submit" class="ms-apply">Хэрэглэх</button>
+            </div>
+          </div>
+        </div>
 
         <button type="submit" class="btn btn-primary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:6px">
@@ -149,7 +204,7 @@
           </svg>
           Харах
         </button>
-        {% if dept or employee or status_filter or period != 'month' %}
+        {% if depts or employees or status_filters or period != 'month' %}
         <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Цэвэрлэх</a>
         {% endif %}
       </div>
@@ -162,7 +217,7 @@
       <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
       <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
     </svg>
-    <span>{{ d_from }} — {{ d_to }}{% if dept %} · {{ dept }}{% endif %}{% if employee %} · {{ employee }}{% endif %}{% if status_filter %} · {{ status_filter }}{% endif %}</span>
+    <span>{{ d_from }} — {{ d_to }}{% if depts %} · {{ depts|join(', ') }}{% endif %}{% if employees %} · {{ employees|join(', ') }}{% endif %}{% if status_filters %} · {{ status_filters|join(', ') }}{% endif %}</span>
   </div>
 </div>
 
@@ -181,31 +236,88 @@ function setPeriod(p) {
   event.target.classList.add('db-tab-active');
 }
 
-// Filter employee dropdown when dept changes
+// ── Multi-select dropdown system ──
 (function() {
-  var deptSel = document.querySelector('select[name="dept"]');
-  var empSel  = document.getElementById('employeeSelect');
-  var allOpts = Array.from(empSel.options).slice(1); // skip "Бүх ажилтан"
+  var openPanel = null;
 
-  function filterEmployees() {
-    var selDept = deptSel.value;
-    var curVal  = empSel.value;
-    // Remove all employee options
-    while (empSel.options.length > 1) empSel.remove(1);
-    // Re-add matching options
-    allOpts.forEach(function(opt) {
-      var optDept = opt.dataset.dept;
-      if (!selDept || optDept === selDept) {
-        empSel.appendChild(opt.cloneNode(true));
-      }
-    });
-    // Restore selection if still valid
-    empSel.value = curVal;
-    if (empSel.value !== curVal) empSel.value = '';
+  function getCbs(wrapId) {
+    return Array.from(document.querySelectorAll('#' + wrapId + ' .ms-cb'));
   }
 
-  deptSel.addEventListener('change', filterEmployees);
-  filterEmployees(); // run on page load to respect current dept filter
+  function updateLabel(wrapId, defaultLabel) {
+    var checked = getCbs(wrapId).filter(function(cb) {
+      return cb.checked && cb.closest('label').style.display !== 'none';
+    });
+    // count all checked (including hidden by dept filter)
+    var allChecked = getCbs(wrapId).filter(function(cb) { return cb.checked; });
+    var lbl = document.getElementById(wrapId + '_lbl');
+    if (lbl) lbl.textContent = allChecked.length ? allChecked.length + ' сонгосон' : defaultLabel;
+    var allCb = document.getElementById(wrapId + '_all');
+    if (allCb) {
+      var visible = getCbs(wrapId).filter(function(cb) { return cb.closest('label').style.display !== 'none'; });
+      var visChecked = visible.filter(function(cb) { return cb.checked; });
+      allCb.indeterminate = visChecked.length > 0 && visChecked.length < visible.length;
+      allCb.checked = visible.length > 0 && visChecked.length === visible.length;
+    }
+  }
+
+  window.msOpen = function(wrapId, e) {
+    e.stopPropagation();
+    var panel = document.getElementById(wrapId + '_panel');
+    if (!panel) return;
+    if (openPanel && openPanel !== panel) { openPanel.style.display = 'none'; }
+    var isOpen = panel.style.display !== 'none';
+    if (isOpen) { panel.style.display = 'none'; openPanel = null; return; }
+    var btn = document.getElementById(wrapId + '_btn');
+    var rect = btn.getBoundingClientRect();
+    panel.style.left = rect.left + 'px';
+    panel.style.top  = (rect.bottom + 4) + 'px';
+    panel.style.display = 'block';
+    openPanel = panel;
+  };
+
+  window.msAllChange = function(wrapId, defaultLabel) {
+    var allCb = document.getElementById(wrapId + '_all');
+    getCbs(wrapId).forEach(function(cb) {
+      if (cb.closest('label').style.display !== 'none') cb.checked = allCb.checked;
+    });
+    updateLabel(wrapId, defaultLabel);
+  };
+
+  window.msItemChange = function(wrapId, defaultLabel) { updateLabel(wrapId, defaultLabel); };
+
+  window.msClear = function(wrapId, defaultLabel) {
+    getCbs(wrapId).forEach(function(cb) { cb.checked = false; });
+    var allCb = document.getElementById(wrapId + '_all');
+    if (allCb) { allCb.checked = false; allCb.indeterminate = false; }
+    updateLabel(wrapId, defaultLabel);
+  };
+
+  // Filter employee list when dept selection changes
+  window.msFilterEmp = function() {
+    var selDepts = getCbs('ms_dept').filter(function(cb) { return cb.checked; }).map(function(cb) { return cb.value; });
+    var noDeptFilter = selDepts.length === 0;
+    document.querySelectorAll('#ms_emp .ms-emp-item').forEach(function(lbl) {
+      var cb = lbl.querySelector('input');
+      var show = noDeptFilter || selDepts.indexOf(cb.dataset.dept) !== -1;
+      lbl.style.display = show ? '' : 'none';
+      if (!show) cb.checked = false;
+    });
+    updateLabel('ms_emp', 'Бүх ажилтан');
+  };
+
+  // Close panel on outside click
+  document.addEventListener('click', function(e) {
+    if (openPanel && !openPanel.closest('.ms-wrap').contains(e.target)) {
+      openPanel.style.display = 'none'; openPanel = null;
+    }
+  });
+
+  // Init on load
+  msFilterEmp();
+  updateLabel('ms_dept', 'Бүх хэлтэс');
+  updateLabel('ms_emp', 'Бүх ажилтан');
+  updateLabel('ms_status', 'Бүх төлөв');
 })();
 
 // Combine year+month/quarter/half selects into hidden inputs before submit
@@ -260,6 +372,15 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     <div class="db-kpi-label">Дундаж хэтэрсэн хоног</div>
     <div class="db-kpi-value">{{ avg_overdue }}</div>
     <div class="db-kpi-sub">хоног  (дээд: {{ max_overdue }})</div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-teal">
+    <div class="db-kpi-label">Гүйцэтгэлийн хувь</div>
+    <div class="db-kpi-value">{{ performance_pct }}%</div>
+    <div class="db-kpi-sub">(Хугацаандаа + Бүрэн) ÷ 2</div>
+    <div class="db-kpi-bar-track">
+      <div class="db-kpi-bar db-kpi-bar-teal" style="width:{{ performance_pct }}%"></div>
+    </div>
   </div>
 
   <div class="db-kpi-card db-kpi-blue">
@@ -709,6 +830,36 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 </script>
 
 <style>
+/* ── Multi-select dropdown ── */
+.ms-wrap { position: relative; display: inline-block; }
+.ms-trigger {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  padding: 7px 12px; min-width: 140px;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; color: var(--text-primary);
+  cursor: pointer; font-family: inherit; transition: border-color .15s;
+}
+.ms-trigger:hover { border-color: var(--primary); }
+.ms-panel {
+  display: none; position: fixed; z-index: 3000;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.18); padding: 8px; min-width: 180px; max-height: 320px;
+  overflow-y: auto;
+}
+.ms-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; font-size: 13px; cursor: pointer;
+  border-radius: 5px; color: #374151; user-select: none;
+}
+.ms-item:hover { background: #f1f5f9; }
+.ms-item input[type=checkbox] { cursor: pointer; accent-color: #3B6BA5; flex-shrink: 0; }
+.ms-all-item { font-weight: 700; border-bottom: 1px solid #e2e8f0; margin-bottom: 4px; padding-bottom: 8px; }
+.ms-footer { display: flex; gap: 6px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px; position: sticky; bottom: 0; background: #fff; }
+.ms-apply { flex: 1; padding: 6px; background: #3B6BA5; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.ms-apply:hover { background: #2d5490; }
+.ms-clear { padding: 6px 10px; background: #f1f5f9; color: #64748b; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit; }
+.ms-clear:hover { background: #e2e8f0; }
+
 /* ── Filter bar ── */
 .db-filter-bar {
   padding: 16px 20px;

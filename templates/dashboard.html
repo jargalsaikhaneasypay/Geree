@@ -514,7 +514,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
       {% set max_ic = insp_counts.values() | max %}
       <div class="bar-chart">
         {% for result, cnt in insp_counts.items() %}
-        {% set is_full = result in ['Бүрэн', 'Салбар дээр архивлагдсан/бүрэн'] %}
+        {% set is_full = result in ['1.Бүрэн', '3.Салбар дээр архивлагдсан/бүрэн'] %}
         <div class="bar-item">
           <span class="bar-label" style="width:210px;font-size:12px">{{ result }}</span>
           <div class="bar-track">

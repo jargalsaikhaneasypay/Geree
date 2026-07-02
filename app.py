@@ -1128,7 +1128,8 @@ def dashboard():
         base_params.append(status_filter)
 
     cur.execute(f"SELECT * FROM contracts {base_cond}", base_params)
-    all_rows = cur.fetchall()
+    EXCLUDE_INSP = {'7.Татагдсан', '6.Татагдсан'}
+    all_rows = [r for r in cur.fetchall() if r['first_inspection'] not in EXCLUDE_INSP]
     inactive_count = sum(1 for r in all_rows if r['is_inactive'] == '1')
     active_rows    = [r for r in all_rows if r['is_inactive'] != '1']
     hoosoon_count  = sum(1 for r in active_rows if r['time_category'] == 'Хоосон')

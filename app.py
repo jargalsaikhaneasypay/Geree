@@ -968,9 +968,74 @@ def download_template():
 @app.route('/admin')
 @login_required
 def admin():
+    import calendar as _cal
+    today = date.today()
+
+    MONTHS_MN = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар',
+                 '7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар']
+
+    period    = request.args.get('period', '')
+    sel_month = request.args.get('sel_month', '').strip()
+    sel_q     = request.args.get('sel_q', '').strip()
+    sel_half  = request.args.get('sel_half', '').strip()
+    sel_year  = request.args.get('sel_year', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to   = request.args.get('date_to', '').strip()
+
+    d_from = d_to = None
+    if period == 'day':
+        d_from = d_to = today.isoformat()
+    elif period == 'month':
+        if sel_month:
+            try:
+                y, m = map(int, sel_month.split('-'))
+            except Exception:
+                y, m = today.year, today.month
+        else:
+            y, m = today.year, today.month
+        d_from = date(y, m, 1).isoformat()
+        d_to   = date(y, m, _cal.monthrange(y, m)[1]).isoformat()
+    elif period == 'quarter':
+        if sel_q:
+            try:
+                parts = sel_q.split('-Q'); y = int(parts[0]); q = int(parts[1])
+            except Exception:
+                y = today.year; q = (today.month - 1) // 3 + 1
+        else:
+            y = today.year; q = (today.month - 1) // 3 + 1
+        ms = (q - 1) * 3 + 1; me = ms + 2
+        d_from = date(y, ms, 1).isoformat()
+        d_to   = date(y, me, _cal.monthrange(y, me)[1]).isoformat()
+    elif period == 'halfyear':
+        if sel_half:
+            try:
+                parts = sel_half.split('-H'); y = int(parts[0]); h = int(parts[1])
+            except Exception:
+                y = today.year; h = 1 if today.month <= 6 else 2
+        else:
+            y = today.year; h = 1 if today.month <= 6 else 2
+        ms = 1 if h == 1 else 7; me = 6 if h == 1 else 12
+        d_from = date(y, ms, 1).isoformat()
+        d_to   = date(y, me, _cal.monthrange(y, me)[1]).isoformat()
+    elif period == 'year':
+        y = int(sel_year) if sel_year else today.year
+        d_from = date(y, 1, 1).isoformat()
+        d_to   = date(y, 12, 31).isoformat()
+    elif period == 'custom' and date_from and date_to:
+        d_from = date_from; d_to = date_to
+
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute('SELECT * FROM contracts ORDER BY dd')
+
+    cur.execute("SELECT MIN(SUBSTRING(pos_issue_date,1,4)) AS m FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
+    min_yr = cur.fetchone()['m']
+    min_year = int(min_yr) if min_yr else today.year
+    years = list(range(today.year, min_year - 1, -1))
+
+    if d_from and d_to:
+        cur.execute('SELECT * FROM contracts WHERE pos_issue_date BETWEEN %s AND %s ORDER BY dd', [d_from, d_to])
+    else:
+        cur.execute('SELECT * FROM contracts ORDER BY dd')
     contracts = cur.fetchall()
     cur.close()
     conn.close()
@@ -992,7 +1057,11 @@ def admin():
     return render_template('admin.html',
                            contracts=contracts,
                            total=total, on_time=on_time, overdue=overdue,
-                           by_dept=by_dept, by_result=by_result)
+                           by_dept=by_dept, by_result=by_result,
+                           period=period, d_from=d_from or '', d_to=d_to or '',
+                           sel_month=sel_month, sel_q=sel_q, sel_half=sel_half,
+                           sel_year=sel_year, date_from=date_from, date_to=date_to,
+                           years=years, today=today.isoformat(), months_mn=MONTHS_MN)
 
 
 # -----------------------------------------------------------

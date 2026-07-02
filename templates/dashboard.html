@@ -374,14 +374,6 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     <div class="db-kpi-sub">хоног  (дээд: {{ max_overdue }})</div>
   </div>
 
-  <div class="db-kpi-card db-kpi-teal">
-    <div class="db-kpi-label">Гүйцэтгэлийн хувь</div>
-    <div class="db-kpi-value">{{ performance_pct }}%</div>
-    <div class="db-kpi-bar-track" style="margin-top:10px">
-      <div class="db-kpi-bar db-kpi-bar-teal" style="width:{{ performance_pct }}%"></div>
-    </div>
-  </div>
-
   <div class="db-kpi-card db-kpi-blue">
     <div class="db-kpi-label">Эхний хяналтаар бүрэн</div>
     <div class="db-kpi-value">{{ complete }}</div>
@@ -391,7 +383,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     </div>
   </div>
 
-  <div class="db-kpi-card db-kpi-purple">
+  <div class="db-kpi-card db-kpi-purple" style="background:#F9E0FF">
     <div class="db-kpi-label">Эхний хяналтаар буцаасан</div>
     <div class="db-kpi-value">{{ returned }}</div>
     <div class="db-kpi-sub">{{ returned_pct }}%</div>
@@ -405,7 +397,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
       </span>
       <span class="db-kpi-extra-row" style="color:#5B2C6F">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Засварлагдаагүй: <strong style="color:#8E44AD">{{ returned_not_repaired }}</strong>
+        <strong>Засварлагдаагүй:</strong> <strong style="color:#8E44AD">{{ returned_not_repaired }}</strong>
       </span>
     </div>
   </div>
@@ -439,6 +431,14 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     <div class="db-kpi-sub">{{ h_pct }}% · огноогүй</div>
     <div class="db-kpi-bar-track">
       <div class="db-kpi-bar db-kpi-bar-gray" style="width:{{ h_pct }}%"></div>
+    </div>
+  </div>
+
+  <div class="db-kpi-card db-kpi-teal">
+    <div class="db-kpi-label">Гүйцэтгэлийн хувь</div>
+    <div class="db-kpi-value">{{ performance_pct }}%</div>
+    <div class="db-kpi-bar-track" style="margin-top:10px">
+      <div class="db-kpi-bar db-kpi-bar-teal" style="width:{{ performance_pct }}%"></div>
     </div>
   </div>
 

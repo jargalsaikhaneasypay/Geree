@@ -4,6 +4,107 @@
 
 {% block content %}
 
+<!-- Period filter -->
+<div class="card db-filter-bar" style="margin-bottom:16px">
+  <form method="GET" id="adminForm">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);white-space:nowrap">Хугацааны төрөл</span>
+      <div class="db-period-tabs">
+        <button type="button" onclick="adSetPeriod('',this)" class="db-tab {% if not period %}db-tab-active{% endif %}">Бүгд</button>
+        <button type="button" onclick="adSetPeriod('day',this)" class="db-tab {% if period=='day' %}db-tab-active{% endif %}">Өнөөдөр</button>
+        <button type="button" onclick="adSetPeriod('month',this)" class="db-tab {% if period=='month' %}db-tab-active{% endif %}">Сар</button>
+        <button type="button" onclick="adSetPeriod('quarter',this)" class="db-tab {% if period=='quarter' %}db-tab-active{% endif %}">Улирал</button>
+        <button type="button" onclick="adSetPeriod('halfyear',this)" class="db-tab {% if period=='halfyear' %}db-tab-active{% endif %}">Хагас жил</button>
+        <button type="button" onclick="adSetPeriod('year',this)" class="db-tab {% if period=='year' %}db-tab-active{% endif %}">Жил</button>
+        <button type="button" onclick="adSetPeriod('custom',this)" class="db-tab {% if period=='custom' %}db-tab-active{% endif %}">Динамик</button>
+      </div>
+      <input type="hidden" name="period" id="adPeriod" value="{{ period }}" />
+
+      <!-- Month -->
+      <div id="adg_month" style="display:{% if period=='month' %}flex{% else %}none{% endif %};align-items:center;gap:6px">
+        <select id="ad_my" class="select-filter" style="width:85px">
+          {% for y in years %}<option value="{{ y }}" {% if sel_month and sel_month.startswith(y|string) %}selected{% elif not sel_month and y==today[:4]|int %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+        <select id="ad_mm" class="select-filter" style="width:105px">
+          {% for i in range(1,13) %}{% set mv='%02d'|format(i) %}
+          <option value="{{ mv }}" {% if sel_month and sel_month.endswith('-'+mv) %}selected{% elif not sel_month and today[5:7]==mv %}selected{% endif %}>{{ months_mn[i-1] }}</option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="sel_month" id="ad_mh" value="{{ sel_month }}" />
+      </div>
+
+      <!-- Quarter -->
+      <div id="adg_quarter" style="display:{% if period=='quarter' %}flex{% else %}none{% endif %};align-items:center;gap:6px">
+        <select id="ad_qy" class="select-filter" style="width:85px">
+          {% for y in years %}<option value="{{ y }}" {% if sel_q and sel_q.startswith(y|string) %}selected{% elif not sel_q and y==today[:4]|int %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+        <select id="ad_qq" class="select-filter" style="width:110px">
+          {% for qi in [1,2,3,4] %}<option value="Q{{ qi }}" {% if sel_q and sel_q.endswith('-Q'+qi|string) %}selected{% elif not sel_q and ((today[5:7]|int-1)//3+1)==qi %}selected{% endif %}>{{ qi }}-р улирал</option>{% endfor %}
+        </select>
+        <input type="hidden" name="sel_q" id="ad_qh" value="{{ sel_q }}" />
+      </div>
+
+      <!-- Half year -->
+      <div id="adg_halfyear" style="display:{% if period=='halfyear' %}flex{% else %}none{% endif %};align-items:center;gap:6px">
+        <select id="ad_hy" class="select-filter" style="width:85px">
+          {% for y in years %}<option value="{{ y }}" {% if sel_half and sel_half.startswith(y|string) %}selected{% elif not sel_half and y==today[:4]|int %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+        <select id="ad_hh" class="select-filter" style="width:130px">
+          <option value="H1" {% if sel_half and sel_half.endswith('-H1') %}selected{% elif not sel_half and today[5:7]|int<=6 %}selected{% endif %}>Эхний хагас жил</option>
+          <option value="H2" {% if sel_half and sel_half.endswith('-H2') %}selected{% elif not sel_half and today[5:7]|int>6 %}selected{% endif %}>Хоёрдугаар хагас жил</option>
+        </select>
+        <input type="hidden" name="sel_half" id="ad_halfh" value="{{ sel_half }}" />
+      </div>
+
+      <!-- Year -->
+      <div id="adg_year" style="display:{% if period=='year' %}flex{% else %}none{% endif %};align-items:center;gap:6px">
+        <select name="sel_year" id="ad_yi" class="select-filter" style="width:90px">
+          {% for y in years %}<option value="{{ y }}" {% if sel_year and sel_year|int==y %}selected{% elif not sel_year and y==today[:4]|int %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <!-- Custom -->
+      <div id="adg_custom" style="display:{% if period=='custom' %}flex{% else %}none{% endif %};align-items:center;gap:6px">
+        <input type="date" name="date_from" value="{{ date_from or d_from }}" class="form-input" style="width:140px" />
+        <span style="color:var(--text-muted);font-size:13px">—</span>
+        <input type="date" name="date_to"   value="{{ date_to or d_to }}"     class="form-input" style="width:140px" />
+        <button type="submit" class="btn btn-primary" style="padding:7px 14px">Харах</button>
+      </div>
+
+      {% if d_from %}<span style="font-size:12px;color:var(--text-muted)">{{ d_from }} — {{ d_to }}</span>{% endif %}
+    </div>
+  </form>
+</div>
+
+<script>
+var _adPanels = {month:'adg_month',quarter:'adg_quarter',halfyear:'adg_halfyear',year:'adg_year',custom:'adg_custom'};
+function _adHideAll(){Object.values(_adPanels).forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});}
+function adSetPeriod(p,btn){
+  document.getElementById('adPeriod').value=p;
+  _adHideAll();
+  document.querySelectorAll('#adminForm .db-tab').forEach(function(b){b.classList.remove('db-tab-active');});
+  if(btn)btn.classList.add('db-tab-active');
+  if(p&&_adPanels[p]){var el=document.getElementById(_adPanels[p]);if(el)el.style.display='flex';}
+  if(p!=='custom'){
+    var my=document.getElementById('ad_my'),mm=document.getElementById('ad_mm'),mh=document.getElementById('ad_mh');
+    if(my&&mm&&mh)mh.value=my.value+'-'+mm.value;
+    var qy=document.getElementById('ad_qy'),qq=document.getElementById('ad_qq'),qh=document.getElementById('ad_qh');
+    if(qy&&qq&&qh)qh.value=qy.value+'-'+qq.value;
+    var hy=document.getElementById('ad_hy'),hh=document.getElementById('ad_hh'),hhi=document.getElementById('ad_halfh');
+    if(hy&&hh&&hhi)hhi.value=hy.value+'-'+hh.value;
+    document.getElementById('adminForm').submit();
+  }
+}
+document.getElementById('adminForm').addEventListener('submit',function(){
+  var my=document.getElementById('ad_my'),mm=document.getElementById('ad_mm'),mh=document.getElementById('ad_mh');
+  if(my&&mm&&mh)mh.value=my.value+'-'+mm.value;
+  var qy=document.getElementById('ad_qy'),qq=document.getElementById('ad_qq'),qh=document.getElementById('ad_qh');
+  if(qy&&qq&&qh)qh.value=qy.value+'-'+qq.value;
+  var hy=document.getElementById('ad_hy'),hh=document.getElementById('ad_hh'),hhi=document.getElementById('ad_halfh');
+  if(hy&&hh&&hhi)hhi.value=hy.value+'-'+hh.value;
+});
+</script>
+
 <!-- Stats row -->
 <div class="stats-row">
   <div class="stat-card">

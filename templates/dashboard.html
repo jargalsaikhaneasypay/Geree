@@ -278,6 +278,16 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     <div class="db-kpi-bar-track">
       <div class="db-kpi-bar db-kpi-bar-purple" style="width:{{ returned_pct }}%"></div>
     </div>
+    <div class="db-kpi-extra" style="border-top-color:#C9A8E0">
+      <span class="db-kpi-extra-row" style="color:#5B2C6F">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+        Засварлагдсан: <strong style="color:#8E44AD">{{ returned_repaired }}</strong>
+      </span>
+      <span class="db-kpi-extra-row" style="color:#5B2C6F">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Засварлагдаагүй: <strong style="color:#8E44AD">{{ returned_not_repaired }}</strong>
+      </span>
+    </div>
   </div>
 
   <div class="db-kpi-card db-kpi-amber">

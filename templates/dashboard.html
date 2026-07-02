@@ -359,12 +359,12 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     </div>
   </div>
 
-  <div class="db-kpi-card db-kpi-red">
+  <div class="db-kpi-card db-kpi-purple">
     <div class="db-kpi-label">Хугацаа хэтэрсэн</div>
     <div class="db-kpi-value">{{ overdue }}</div>
     <div class="db-kpi-sub">{{ overdue_pct }}%</div>
     <div class="db-kpi-bar-track">
-      <div class="db-kpi-bar db-kpi-bar-red" style="width:{{ overdue_pct }}%"></div>
+      <div class="db-kpi-bar db-kpi-bar-purple" style="width:{{ overdue_pct }}%"></div>
     </div>
   </div>
 
@@ -383,21 +383,21 @@ document.getElementById('dbForm').addEventListener('submit', function() {
     </div>
   </div>
 
-  <div class="db-kpi-card db-kpi-purple" style="background:#F9E0FF">
+  <div class="db-kpi-card db-kpi-red" style="background:#FFCCCC">
     <div class="db-kpi-label">Эхний хяналтаар буцаасан</div>
     <div class="db-kpi-value">{{ returned }}</div>
     <div class="db-kpi-sub">{{ returned_pct }}%</div>
     <div class="db-kpi-bar-track">
-      <div class="db-kpi-bar db-kpi-bar-purple" style="width:{{ returned_pct }}%"></div>
+      <div class="db-kpi-bar db-kpi-bar-red" style="width:{{ returned_pct }}%"></div>
     </div>
-    <div class="db-kpi-extra" style="border-top-color:#C9A8E0">
-      <span class="db-kpi-extra-row" style="color:#5B2C6F">
+    <div class="db-kpi-extra" style="border-top-color:#F5A9A9">
+      <span class="db-kpi-extra-row" style="color:#922B21">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
-        Засварлагдсан: <strong style="color:#8E44AD">{{ returned_repaired }}</strong>
+        Засварлагдсан: <strong style="color:#C0392B">{{ returned_repaired }}</strong>
       </span>
-      <span class="db-kpi-extra-row" style="color:#5B2C6F">
+      <span class="db-kpi-extra-row" style="color:#922B21">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <strong>Засварлагдаагүй:</strong> <strong style="color:#8E44AD">{{ returned_not_repaired }}</strong>
+        <strong>Засварлагдаагүй:</strong> <strong style="color:#C0392B">{{ returned_not_repaired }}</strong>
       </span>
     </div>
   </div>

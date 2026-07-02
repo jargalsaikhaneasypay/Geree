@@ -202,6 +202,8 @@
           <th>Сүүлийн хяналт</th>
           <th>Зассан</th>
           <th>Scanned</th>
+          <th>Засварлагдсан эсэх</th>
+          <th>Засварлагдсан огноо</th>
           <th class="col-actions">Үйлдэл</th>
         </tr>
       </thead>
@@ -255,6 +257,12 @@
           <td class="text-center">{{ c.last_inspection_date or '—' }}</td>
           <td class="text-center">{{ (c.modified_by or '').split('@')[0] or '—' }}</td>
           <td class="text-center">{% if c.scanned == '1' %}✓{% else %}—{% endif %}</td>
+          <td class="text-center">
+            {% if c.is_repaired == 'Тийм' %}
+              <span class="badge badge-success">Тийм</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.repaired_date or '—' }}</td>
           <td class="text-center">
             <div class="action-btns">
               <a href="{{ url_for('edit', cid=c.id) }}" class="action-btn action-btn-edit" title="Засах">

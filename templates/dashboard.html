@@ -272,7 +272,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
   </div>
 
   <div class="db-kpi-card db-kpi-purple">
-    <div class="db-kpi-label">Буцаасан гэрээ</div>
+    <div class="db-kpi-label">Эхний хяналтаар буцаасан</div>
     <div class="db-kpi-value">{{ returned }}</div>
     <div class="db-kpi-sub">{{ returned_pct }}%</div>
     <div class="db-kpi-bar-track">
@@ -281,7 +281,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
   </div>
 
   <div class="db-kpi-card db-kpi-amber">
-    <div class="db-kpi-label">Ирээгүй гэрээ</div>
+    <div class="db-kpi-label">Хүлээгдэж байгаа гэрээ</div>
     <div class="db-kpi-value">{{ not_received }}</div>
     {% set nr_pct = (not_received / total * 100) | round(1) if total else 0 %}
     <div class="db-kpi-sub">{{ nr_pct }}% · хүлээн аваагүй</div>
@@ -547,6 +547,8 @@ document.getElementById('dbForm').addEventListener('submit', function() {
           <th>Пос серийн №</th>
           <th>Пос огноо</th>
           <th>Ангилал</th>
+          <th>Эхний хяналтын үр дүн</th>
+          <th>Тайлбар</th>
         </tr>
       </thead>
       <tbody>
@@ -572,6 +574,8 @@ document.getElementById('dbForm').addEventListener('submit', function() {
               {% else %}{{ c.time_category or 'Хоосон' }}{% endif %}
             </span>
           </td>
+          <td>{% if c.first_inspection %}<span class="badge badge-inspection">{{ c.first_inspection }}</span>{% else %}—{% endif %}</td>
+          <td style="max-width:200px;white-space:normal;font-size:12px">{{ c.description or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

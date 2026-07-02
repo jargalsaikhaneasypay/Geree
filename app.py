@@ -1248,7 +1248,11 @@ def dashboard():
         complete_pct=complete_pct, returned_pct=returned_pct,
         insp_counts=insp_counts, dept_stats=dept_stats, trend=trend,
         inactive_count=inactive_count,
-        contracts=sorted(all_rows, key=lambda r: (r['dd'] or 0)),
+        contracts=sorted(
+            [r for r in all_rows if r['first_inspection'] in
+             {'2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу'}],
+            key=lambda r: (r['dd'] or 0)
+        ),
         mgr_dept_map=mgr_dept_map,
     )
 

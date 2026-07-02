@@ -542,40 +542,32 @@ document.getElementById('dbForm').addEventListener('submit', function() {
       <thead>
         <tr>
           <th style="width:40px">#</th>
-          <th>Мерчантын нэр</th>
           <th>Терминал №</th>
           <th>Пос серийн №</th>
           <th>Пос огноо</th>
-          <th>Ангилал</th>
           <th>Эхний хяналтын үр дүн</th>
           <th>Тайлбар</th>
+          <th>Засварлагдсан эсэх</th>
+          <th>Засварлагдсан огноо</th>
         </tr>
       </thead>
       <tbody>
         {% for c in contracts %}
-        {% if c.time_category == 'Хугацаандаа' %}
-          {% set cat_class = 'badge-success' %}
-        {% elif c.time_category == 'Хугацаа хэтэрсэн' %}
-          {% set cat_class = 'badge-danger' %}
-        {% elif c.is_inactive == '1' %}
-          {% set cat_class = 'badge-inspection' %}
-        {% else %}
-          {% set cat_class = 'badge-dept' %}
-        {% endif %}
         <tr>
           <td class="text-center fw-600">{{ loop.index }}</td>
-          <td class="fw-500">{{ c.merchant_name or '—' }}</td>
           <td>{{ c.terminal_number or '—' }}</td>
           <td>{{ c.pos_serial or '—' }}</td>
           <td>{{ c.pos_issue_date or '—' }}</td>
-          <td>
-            <span class="badge {{ cat_class }}">
-              {% if c.is_inactive == '1' %}Буцаасан
-              {% else %}{{ c.time_category or 'Хоосон' }}{% endif %}
-            </span>
-          </td>
           <td>{% if c.first_inspection %}<span class="badge badge-inspection">{{ c.first_inspection }}</span>{% else %}—{% endif %}</td>
           <td style="max-width:200px;white-space:normal;font-size:12px">{{ c.description or '—' }}</td>
+          <td class="text-center">
+            {% if c.is_repaired == 'Тийм' %}
+              <span class="badge badge-success">Тийм</span>
+            {% else %}
+              <span style="color:var(--text-muted)">—</span>
+            {% endif %}
+          </td>
+          <td>{{ c.repaired_date or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>

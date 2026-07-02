@@ -82,7 +82,8 @@ def init_db():
     ''')
     conn.commit()
     for new_col in ['status', 'return_date_2', 'return_date_3', 'return_date_4', 'return_date_5',
-                    'is_inactive', 'inactive_reason', 'modified_by', 'scanned']:
+                    'is_inactive', 'inactive_reason', 'modified_by', 'scanned',
+                    'is_repaired', 'repaired_date']:
         cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
 
@@ -359,6 +360,8 @@ def add():
         return_date_5        = request.form.get('return_date_5', '').strip()
         last_inspection_date = request.form.get('last_inspection_date', '').strip()
         scanned              = '1' if request.form.get('scanned') else ''
+        is_repaired          = 'Тийм' if request.form.get('is_repaired') else ''
+        repaired_date        = date.today().isoformat() if is_repaired == 'Тийм' else ''
 
         overdue_days, time_category = calc_status(expected_date, received_date)
 
@@ -377,14 +380,14 @@ def add():
              expected_date, received_date, overdue_days, time_category,
              first_inspection, description,
              return_date, return_date_2, return_date_3, return_date_4, return_date_5,
-             last_inspection_date, scanned)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             last_inspection_date, scanned, is_repaired, repaired_date)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ''', (dd, merchant_name, pos_serial, merchant_number, terminal_number,
               status, pos_issue_date, phone, merchant_type, issued_by, department,
               expected_date, received_date, overdue_days, time_category,
               first_inspection, description,
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
-              last_inspection_date, scanned))
+              last_inspection_date, scanned, is_repaired, repaired_date))
         conn.commit()
         cur.close()
         conn.close()
@@ -445,6 +448,12 @@ def edit(cid):
         is_inactive          = '1' if request.form.get('is_inactive') else ''
         scanned              = '1' if request.form.get('scanned') else ''
         inactive_reason      = request.form.get('inactive_reason', '').strip()
+        is_repaired          = 'Тийм' if request.form.get('is_repaired') else ''
+        existing_repaired    = (contract.get('repaired_date') or '').strip()
+        if is_repaired == 'Тийм':
+            repaired_date = existing_repaired if existing_repaired else date.today().isoformat()
+        else:
+            repaired_date = ''
 
         overdue_days, time_category = calc_status(expected_date, received_date)
 
@@ -468,7 +477,8 @@ def edit(cid):
                 first_inspection=%s, description=%s,
                 return_date=%s, return_date_2=%s, return_date_3=%s, return_date_4=%s, return_date_5=%s,
                 last_inspection_date=%s, is_inactive=%s, inactive_reason=%s,
-                scanned=%s, modified_by=%s
+                scanned=%s, modified_by=%s,
+                is_repaired=%s, repaired_date=%s
             WHERE id=%s
         ''', (merchant_name, pos_serial, merchant_number, terminal_number,
               status, pos_issue_date, phone, merchant_type, issued_by,
@@ -477,7 +487,8 @@ def edit(cid):
               first_inspection, description,
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
               last_inspection_date, is_inactive, inactive_reason,
-              scanned, session.get('user', ''), cid))
+              scanned, session.get('user', ''),
+              is_repaired, repaired_date, cid))
         conn.commit()
         cur.close()
         conn.close()

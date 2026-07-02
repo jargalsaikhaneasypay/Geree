@@ -33,7 +33,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-DEPARTMENTS = ['Борлуулалт', 'ХҮАжилтан', 'Салбар', 'Хө/орон нутаг']
+DEPARTMENTS = ['Борлуулалт', 'ХҮТ', 'Салбар', 'Хө/орон нутаг']
 STATUSES = ['Гэрээ', 'Зарагдсан', 'Нэр шилжүүлэг', 'Түрээс']
 INSPECTION_RESULTS = [
     '1.Бүрэн',
@@ -126,9 +126,9 @@ def init_db():
           AND (received_date IS NULL OR received_date = '')
           AND expected_date::date >= CURRENT_DATE
     """)
-    # Rename ХҮА → ХҮАжилтан in both tables
-    cur.execute("UPDATE contracts SET department = 'ХҮАжилтан' WHERE department = 'ХҮА'")
-    cur.execute("UPDATE managers  SET department = 'ХҮАжилтан' WHERE department = 'ХҮА'")
+    # Rename ХҮА → ХҮТ in both tables (covers old ХҮА and intermediate ХҮАжилтан)
+    cur.execute("UPDATE contracts SET department = 'ХҮТ' WHERE department IN ('ХҮА', 'ХҮАжилтан')")
+    cur.execute("UPDATE managers  SET department = 'ХҮТ' WHERE department IN ('ХҮА', 'ХҮАжилтан')")
     # Rename Хөдөө орон нутаг → Хө/орон нутаг in both tables
     cur.execute("UPDATE contracts SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")
     cur.execute("UPDATE managers  SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")

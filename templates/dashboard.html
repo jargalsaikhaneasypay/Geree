@@ -377,8 +377,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
   <div class="db-kpi-card db-kpi-teal">
     <div class="db-kpi-label">Гүйцэтгэлийн хувь</div>
     <div class="db-kpi-value">{{ performance_pct }}%</div>
-    <div class="db-kpi-sub">(Хугацаандаа + Бүрэн) ÷ 2</div>
-    <div class="db-kpi-bar-track">
+    <div class="db-kpi-bar-track" style="margin-top:10px">
       <div class="db-kpi-bar db-kpi-bar-teal" style="width:{{ performance_pct }}%"></div>
     </div>
   </div>

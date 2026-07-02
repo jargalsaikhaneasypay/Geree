@@ -1063,6 +1063,9 @@ def dashboard():
     cur.execute("SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by")
     all_employees = [r['issued_by'] for r in cur.fetchall()]
 
+    cur.execute("SELECT DISTINCT department FROM managers WHERE department IS NOT NULL AND department != '' ORDER BY department")
+    dash_departments = [r['department'] for r in cur.fetchall()]
+
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
 
@@ -1183,7 +1186,7 @@ def dashboard():
         sel_month=sel_month, sel_q=sel_q, sel_half=sel_half, sel_year=sel_year,
         date_from=date_from, date_to=date_to,
         d_from=d_from, d_to=d_to,
-        departments=DEPARTMENTS, statuses=STATUSES, all_employees=all_employees,
+        departments=dash_departments, statuses=STATUSES, all_employees=all_employees,
         status_filter=status_filter,
         years=years, today=today.isoformat(),
         months_mn=MONTHS_MN,

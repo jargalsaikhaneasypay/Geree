@@ -338,13 +338,15 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 
   function cellText(c){ return (c.innerText||c.textContent||'').trim().replace(/\s+/g,' '); }
 
+  var cellCache=rows.map(function(row){ return Array.from(row.cells).map(function(c){ return c?cellText(c):'—'; }); });
+
   function colValues(ci){
     var vals={};
-    rows.forEach(function(r){
-      var show=true;
-      Object.keys(activeFilters).forEach(function(fci){ if(parseInt(fci)===ci) return; var a=activeFilters[fci]; if(!a||a.size===0) return; var c=r.cells[parseInt(fci)]; if(!a.has(c?cellText(c):'—')) show=false; });
+    rows.forEach(function(r,ri){
+      var cache=cellCache[ri]; var show=true;
+      Object.keys(activeFilters).forEach(function(fci){ var n=parseInt(fci); if(n===ci) return; var a=activeFilters[fci]; if(!a||a.size===0) return; if(!a.has(cache[n])) show=false; });
       if(!show) return;
-      var c=r.cells[ci]; vals[c?cellText(c):'—']=true;
+      vals[cache[ci]]=true;
     });
     return Object.keys(vals).sort(function(a,b){ if(a==='—')return 1;if(b==='—')return -1;return a.localeCompare(b,'mn'); });
   }
@@ -359,21 +361,18 @@ document.getElementById('adminForm').addEventListener('submit',function(){
   }
 
   function applyFilters(){
-    rows.forEach(function(row){
-      var show=true;
-      Object.keys(activeFilters).forEach(function(ci){
-        var allowed=activeFilters[ci];
-        if(!allowed||allowed.size===0) return;
-        var cell=row.cells[parseInt(ci)];
-        if(!allowed.has(cell?cellText(cell):'—')) show=false;
-      });
+    var fe=Object.keys(activeFilters).map(function(k){return[parseInt(k),activeFilters[k]];}).filter(function(e){return e[1]&&e[1].size>0;});
+    var hasFilter=fe.length>0;
+    rows.forEach(function(row,ri){
+      var cache=cellCache[ri]; var show=true;
+      for(var i=0;i<fe.length;i++){ if(!fe[i][1].has(cache[fe[i][0]])){show=false;break;} }
       row.style.display=show?'':'none';
     });
-    var visible=rows.filter(function(r){return r.style.display!=='none';}).length;
+    var visible=0; for(var i=0;i<rows.length;i++){ if(rows[i].style.display!=='none') visible++; }
     var el=document.querySelector('#adminTableCard .admin-tbl-count');
     if(el) el.textContent=visible;
     var bar=document.getElementById('adminClearBar');
-    if(bar) bar.style.display=Object.keys(activeFilters).length>0?'flex':'none';
+    if(bar) bar.style.display=hasFilter?'flex':'none';
     updateExportBtn();
   }
 

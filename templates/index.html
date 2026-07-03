@@ -464,22 +464,25 @@ document.getElementById('listForm').addEventListener('submit', function() {
     return (cell.innerText || cell.textContent || '').trim().replace(/\s+/g, ' ');
   }
 
-  // Values from rows that pass all filters EXCEPT column ci's own filter (cascading)
+  // Pre-cache all cell text once to avoid repeated DOM reads during filtering
+  var cellCache = rows.map(function(row) {
+    return Array.from(row.cells).map(function(cell) { return cell ? cellText(cell) : '—'; });
+  });
+
   function colValues(ci) {
     var vals = {};
-    rows.forEach(function(row) {
+    rows.forEach(function(row, ri) {
+      var cache = cellCache[ri];
       var show = true;
       Object.keys(activeFilters).forEach(function(fci) {
-        if (parseInt(fci) === ci) return;
-        var allowed = activeFilters[fci];
-        if (!allowed || allowed.size === 0) return;
-        var cell = row.cells[parseInt(fci)];
-        var v = cell ? cellText(cell) : '—';
-        if (!allowed.has(v)) show = false;
+        var fciN = parseInt(fci);
+        if (fciN === ci) return;
+        var a = activeFilters[fci];
+        if (!a || a.size === 0) return;
+        if (!a.has(cache[fciN])) show = false;
       });
       if (!show) return;
-      var cell = row.cells[ci];
-      vals[cell ? cellText(cell) : '—'] = true;
+      vals[cache[ci]] = true;
     });
     return Object.keys(vals).sort(function(a, b) {
       if (a === '—') return 1; if (b === '—') return -1;
@@ -488,21 +491,21 @@ document.getElementById('listForm').addEventListener('submit', function() {
   }
 
   function applyFilters() {
-    var hasFilter = Object.keys(activeFilters).some(function(k) {
-      return activeFilters[k] && activeFilters[k].size > 0;
-    });
-    rows.forEach(function(row) {
+    // Pre-compute active entries once per call (avoids repeated Object.keys per row)
+    var fe = Object.keys(activeFilters)
+      .map(function(k) { return [parseInt(k), activeFilters[k]]; })
+      .filter(function(e) { return e[1] && e[1].size > 0; });
+    var hasFilter = fe.length > 0;
+    rows.forEach(function(row, ri) {
+      var cache = cellCache[ri];
       var show = true;
-      Object.keys(activeFilters).forEach(function(ci) {
-        var allowed = activeFilters[ci];
-        if (!allowed || allowed.size === 0) return;
-        var cell = row.cells[parseInt(ci)];
-        var v = cell ? cellText(cell) : '—';
-        if (!allowed.has(v)) show = false;
-      });
+      for (var i = 0; i < fe.length; i++) {
+        if (!fe[i][1].has(cache[fe[i][0]])) { show = false; break; }
+      }
       row.style.display = show ? '' : 'none';
     });
-    var visible = rows.filter(function(r) { return r.style.display !== 'none'; }).length;
+    var visible = 0;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].style.display !== 'none') visible++; }
     var countEl = document.querySelector('.table-count strong');
     if (countEl) countEl.textContent = visible;
     var clearBar = document.getElementById('colFilterClearBar');

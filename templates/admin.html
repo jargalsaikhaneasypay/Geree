@@ -5,18 +5,18 @@
 {% block content %}
 
 <!-- Period filter -->
-<div class="card db-filter-bar" style="margin-bottom:16px">
+<div class="card ad-filter-bar" style="margin-bottom:16px">
   <form method="GET" id="adminForm">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);white-space:nowrap">Хугацааны төрөл</span>
-      <div class="db-period-tabs">
-        <button type="button" onclick="adSetPeriod('',this)" class="db-tab {% if not period %}db-tab-active{% endif %}">Бүгд</button>
-        <button type="button" onclick="adSetPeriod('day',this)" class="db-tab {% if period=='day' %}db-tab-active{% endif %}">Өнөөдөр</button>
-        <button type="button" onclick="adSetPeriod('month',this)" class="db-tab {% if period=='month' %}db-tab-active{% endif %}">Сар</button>
-        <button type="button" onclick="adSetPeriod('quarter',this)" class="db-tab {% if period=='quarter' %}db-tab-active{% endif %}">Улирал</button>
-        <button type="button" onclick="adSetPeriod('halfyear',this)" class="db-tab {% if period=='halfyear' %}db-tab-active{% endif %}">Хагас жил</button>
-        <button type="button" onclick="adSetPeriod('year',this)" class="db-tab {% if period=='year' %}db-tab-active{% endif %}">Жил</button>
-        <button type="button" onclick="adSetPeriod('custom',this)" class="db-tab {% if period=='custom' %}db-tab-active{% endif %}">Динамик</button>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span class="ad-filter-label">Хугацааны төрөл</span>
+      <div class="ad-period-tabs">
+        <button type="button" onclick="adSetPeriod('',this)" class="ad-tab {% if not period %}ad-tab-active{% endif %}">Бүгд</button>
+        <button type="button" onclick="adSetPeriod('day',this)" class="ad-tab {% if period=='day' %}ad-tab-active{% endif %}">Өнөөдөр</button>
+        <button type="button" onclick="adSetPeriod('month',this)" class="ad-tab {% if period=='month' %}ad-tab-active{% endif %}">Сар</button>
+        <button type="button" onclick="adSetPeriod('quarter',this)" class="ad-tab {% if period=='quarter' %}ad-tab-active{% endif %}">Улирал</button>
+        <button type="button" onclick="adSetPeriod('halfyear',this)" class="ad-tab {% if period=='halfyear' %}ad-tab-active{% endif %}">Хагас жил</button>
+        <button type="button" onclick="adSetPeriod('year',this)" class="ad-tab {% if period=='year' %}ad-tab-active{% endif %}">Жил</button>
+        <button type="button" onclick="adSetPeriod('custom',this)" class="ad-tab {% if period=='custom' %}ad-tab-active{% endif %}">Динамик</button>
       </div>
       <input type="hidden" name="period" id="adPeriod" value="{{ period }}" />
 
@@ -82,8 +82,8 @@ function _adHideAll(){Object.values(_adPanels).forEach(function(id){var el=docum
 function adSetPeriod(p,btn){
   document.getElementById('adPeriod').value=p;
   _adHideAll();
-  document.querySelectorAll('#adminForm .db-tab').forEach(function(b){b.classList.remove('db-tab-active');});
-  if(btn)btn.classList.add('db-tab-active');
+  document.querySelectorAll('#adminForm .ad-tab').forEach(function(b){b.classList.remove('ad-tab-active');});
+  if(btn)btn.classList.add('ad-tab-active');
   if(p&&_adPanels[p]){var el=document.getElementById(_adPanels[p]);if(el)el.style.display='flex';}
   if(p!=='custom'){
     var my=document.getElementById('ad_my'),mm=document.getElementById('ad_mm'),mh=document.getElementById('ad_mh');
@@ -307,6 +307,26 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 </div>
 
 <style>
+/* ── Period filter bar ── */
+.ad-filter-bar { padding: 16px 20px; }
+.ad-filter-label {
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-muted); white-space: nowrap; flex-shrink: 0;
+}
+.ad-period-tabs {
+  display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg); flex-shrink: 0;
+}
+.ad-tab {
+  padding: 7px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  background: none; border: none; border-right: 1px solid var(--border);
+  cursor: pointer; transition: background .15s, color .15s; font-family: inherit;
+  white-space: nowrap;
+}
+.ad-tab:last-child { border-right: none; }
+.ad-tab:hover      { background: #E8EEF5; color: var(--primary); }
+.ad-tab-active     { background: var(--primary) !important; color: #fff !important; font-weight: 700; }
+
 .col-filter-icon{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;padding:2px 4px;border-radius:3px;cursor:pointer;color:#8896A7;vertical-align:middle;flex-shrink:0;transition:background .12s,color .12s;border:1px solid transparent}
 .col-filter-icon:hover{background:#e2e8f0;color:#1E3A5F;border-color:#c8d0db}
 .col-filter-icon-active{color:#D4800A!important;background:#FEF3E2!important;border-color:#D4800A!important}

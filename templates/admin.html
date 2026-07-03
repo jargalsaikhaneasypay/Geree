@@ -340,7 +340,12 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 
   function colValues(ci){
     var vals={};
-    rows.forEach(function(r){ var c=r.cells[ci]; vals[c?cellText(c):'—']=true; });
+    rows.forEach(function(r){
+      var show=true;
+      Object.keys(activeFilters).forEach(function(fci){ if(parseInt(fci)===ci) return; var a=activeFilters[fci]; if(!a||a.size===0) return; var c=r.cells[parseInt(fci)]; if(!a.has(c?cellText(c):'—')) show=false; });
+      if(!show) return;
+      var c=r.cells[ci]; vals[c?cellText(c):'—']=true;
+    });
     return Object.keys(vals).sort(function(a,b){ if(a==='—')return 1;if(b==='—')return -1;return a.localeCompare(b,'mn'); });
   }
 
@@ -394,12 +399,15 @@ document.getElementById('adminForm').addEventListener('submit',function(){
     var okBtn=document.createElement('button'); okBtn.textContent='OK'; okBtn.className='col-filter-ok';
     var clrBtn=document.createElement('button'); clrBtn.textContent='Цэвэрлэх'; clrBtn.className='col-filter-clear';
     footer.appendChild(clrBtn); footer.appendChild(okBtn); box.appendChild(footer);
-    srch.addEventListener('input',function(){ var q=this.value.toLowerCase(); list.querySelectorAll('label').forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';}); });
-    allCb.addEventListener('change',function(){ list.querySelectorAll('input[type=checkbox]').forEach(function(c){c.checked=allCb.checked;}); });
-    list.addEventListener('change',function(){ allCb.checked=Array.from(list.querySelectorAll('input[type=checkbox]')).every(function(c){return c.checked;}); });
+    function vl(){ return Array.from(list.querySelectorAll('label')).filter(function(l){return l.style.display!=='none';}); }
+    srch.addEventListener('input',function(){ var q=this.value.toLowerCase(); Array.from(list.querySelectorAll('label')).forEach(function(l){l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';}); var v=vl(); allCb.checked=v.length>0&&v.every(function(l){return l.querySelector('input[type=checkbox]').checked;}); });
+    allCb.addEventListener('change',function(){ vl().forEach(function(l){l.querySelector('input[type=checkbox]').checked=allCb.checked;}); });
+    list.addEventListener('change',function(){ var v=vl(); allCb.checked=v.length>0&&v.every(function(l){return l.querySelector('input[type=checkbox]').checked;}); });
     okBtn.addEventListener('click',function(){
-      var checked=new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c){return c.value;}));
-      if(checked.size>=vals.length){delete activeFilters[ci];}else{activeFilters[ci]=checked;}
+      var q=srch.value.trim(); var checked;
+      if(q){ checked=new Set(vl().filter(function(l){return l.querySelector('input[type=checkbox]').checked;}).map(function(l){return l.querySelector('input[type=checkbox]').value;})); }
+      else{ checked=new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c){return c.value;})); }
+      if(checked.size===0||(!q&&checked.size>=vals.length)){delete activeFilters[ci];}else{activeFilters[ci]=checked;}
       applyFilters(); updateIcons(); closeDropdown();
     });
     clrBtn.addEventListener('click',function(){ delete activeFilters[ci]; applyFilters(); updateIcons(); closeDropdown(); });

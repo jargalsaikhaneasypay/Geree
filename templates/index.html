@@ -464,12 +464,22 @@ document.getElementById('listForm').addEventListener('submit', function() {
     return (cell.innerText || cell.textContent || '').trim().replace(/\s+/g, ' ');
   }
 
+  // Values from rows that pass all filters EXCEPT column ci's own filter (cascading)
   function colValues(ci) {
     var vals = {};
     rows.forEach(function(row) {
+      var show = true;
+      Object.keys(activeFilters).forEach(function(fci) {
+        if (parseInt(fci) === ci) return;
+        var allowed = activeFilters[fci];
+        if (!allowed || allowed.size === 0) return;
+        var cell = row.cells[parseInt(fci)];
+        var v = cell ? cellText(cell) : '—';
+        if (!allowed.has(v)) show = false;
+      });
+      if (!show) return;
       var cell = row.cells[ci];
-      var v = cell ? cellText(cell) : '—';
-      vals[v] = true;
+      vals[cell ? cellText(cell) : '—'] = true;
     });
     return Object.keys(vals).sort(function(a, b) {
       if (a === '—') return 1; if (b === '—') return -1;
@@ -478,7 +488,9 @@ document.getElementById('listForm').addEventListener('submit', function() {
   }
 
   function applyFilters() {
-    var hasFilter = Object.keys(activeFilters).length > 0;
+    var hasFilter = Object.keys(activeFilters).some(function(k) {
+      return activeFilters[k] && activeFilters[k].size > 0;
+    });
     rows.forEach(function(row) {
       var show = true;
       Object.keys(activeFilters).forEach(function(ci) {
@@ -538,25 +550,60 @@ document.getElementById('listForm').addEventListener('submit', function() {
     footer.appendChild(clrBtn); footer.appendChild(okBtn);
     box.appendChild(footer);
 
+    function visibleLabels() {
+      return Array.from(list.querySelectorAll('label')).filter(function(lbl) {
+        return lbl.style.display !== 'none';
+      });
+    }
+
+    // Search: hide non-matching rows; update allCb to reflect visible items only
     srch.addEventListener('input', function() {
       var q = this.value.toLowerCase();
-      list.querySelectorAll('label').forEach(function(lbl) {
+      Array.from(list.querySelectorAll('label')).forEach(function(lbl) {
         lbl.style.display = lbl.textContent.toLowerCase().includes(q) ? '' : 'none';
       });
+      var vl = visibleLabels();
+      allCb.checked = vl.length > 0 && vl.every(function(lbl) {
+        return lbl.querySelector('input[type=checkbox]').checked;
+      });
     });
+
+    // "Select all" only toggles visible items
     allCb.addEventListener('change', function() {
-      list.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.checked = allCb.checked; });
+      visibleLabels().forEach(function(lbl) {
+        lbl.querySelector('input[type=checkbox]').checked = allCb.checked;
+      });
     });
+
+    // Individual change: update allCb based on visible items only
     list.addEventListener('change', function() {
-      var cbs = list.querySelectorAll('input[type=checkbox]');
-      allCb.checked = Array.from(cbs).every(function(c) { return c.checked; });
+      var vl = visibleLabels();
+      allCb.checked = vl.length > 0 && vl.every(function(lbl) {
+        return lbl.querySelector('input[type=checkbox]').checked;
+      });
     });
+
     okBtn.addEventListener('click', function() {
-      var checked = new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c){return c.value;}));
-      if (checked.size >= vals.length) { delete activeFilters[ci]; }
-      else { activeFilters[ci] = checked; }
+      var q = srch.value.trim();
+      var checked;
+      if (q) {
+        // When search is active, only use visible checked items as the filter
+        checked = new Set(
+          visibleLabels()
+            .filter(function(lbl) { return lbl.querySelector('input[type=checkbox]').checked; })
+            .map(function(lbl) { return lbl.querySelector('input[type=checkbox]').value; })
+        );
+      } else {
+        checked = new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c) { return c.value; }));
+      }
+      if (checked.size === 0 || (!q && checked.size >= vals.length)) {
+        delete activeFilters[ci];
+      } else {
+        activeFilters[ci] = checked;
+      }
       applyFilters(); updateIcons(); closeDropdown();
     });
+
     clrBtn.addEventListener('click', function() {
       delete activeFilters[ci]; applyFilters(); updateIcons(); closeDropdown();
     });

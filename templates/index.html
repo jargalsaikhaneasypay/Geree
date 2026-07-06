@@ -484,19 +484,18 @@ document.getElementById('listForm').addEventListener('submit', function() {
 
   function colValues(ci) {
     var vals = {};
-    rows.forEach(function(row, ri) {
+    // Pre-compute other-column filters once (avoid Object.keys per row)
+    var fe = Object.keys(activeFilters)
+      .map(function(k) { return [parseInt(k), activeFilters[k]]; })
+      .filter(function(e) { return e[1] && e[1].size > 0 && e[0] !== ci; });
+    for (var ri = 0; ri < rows.length; ri++) {
       var cache = cellCache[ri];
       var show = true;
-      Object.keys(activeFilters).forEach(function(fci) {
-        var fciN = parseInt(fci);
-        if (fciN === ci) return;
-        var a = activeFilters[fci];
-        if (!a || a.size === 0) return;
-        if (!a.has(cache[fciN])) show = false;
-      });
-      if (!show) return;
-      vals[cache[ci]] = true;
-    });
+      for (var i = 0; i < fe.length; i++) {
+        if (!fe[i][1].has(cache[fe[i][0]])) { show = false; break; }
+      }
+      if (show) vals[cache[ci]] = true;
+    }
     return Object.keys(vals).sort(function(a, b) {
       if (a === '—') return 1; if (b === '—') return -1;
       return a.localeCompare(b, 'mn');
@@ -556,14 +555,18 @@ document.getElementById('listForm').addEventListener('submit', function() {
     box.appendChild(allLbl);
 
     var list = document.createElement('div'); list.className = 'col-filter-list';
-    vals.forEach(function(v) {
+    // Use DocumentFragment for batch insertion (no reflow per item)
+    var frag = document.createDocumentFragment();
+    var items = vals.map(function(v) {
       var lbl = document.createElement('label'); lbl.className = 'col-filter-item';
       var cb  = document.createElement('input'); cb.type = 'checkbox'; cb.value = v;
       cb.checked = !activeFilters[ci] || current.has(v);
       lbl.appendChild(cb);
       lbl.appendChild(document.createTextNode(' ' + (v || '(хоосон)')));
-      list.appendChild(lbl);
+      frag.appendChild(lbl);
+      return { lbl: lbl, cb: cb, txt: lbl.textContent.toLowerCase() };
     });
+    list.appendChild(frag);
     box.appendChild(list);
 
     var footer = document.createElement('div'); footer.className = 'col-filter-footer';
@@ -572,51 +575,39 @@ document.getElementById('listForm').addEventListener('submit', function() {
     footer.appendChild(clrBtn); footer.appendChild(okBtn);
     box.appendChild(footer);
 
-    function visibleLabels() {
-      return Array.from(list.querySelectorAll('label')).filter(function(lbl) {
-        return lbl.style.display !== 'none';
-      });
+    function updateAllCb() {
+      var anyVisible = false, allChecked = true;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].lbl.style.display === 'none') continue;
+        anyVisible = true;
+        if (!items[i].cb.checked) { allChecked = false; break; }
+      }
+      allCb.checked = anyVisible && allChecked;
     }
 
-    // Search: hide non-matching rows; update allCb to reflect visible items only
     srch.addEventListener('input', function() {
       var q = this.value.toLowerCase();
-      Array.from(list.querySelectorAll('label')).forEach(function(lbl) {
-        lbl.style.display = lbl.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-      var vl = visibleLabels();
-      allCb.checked = vl.length > 0 && vl.every(function(lbl) {
-        return lbl.querySelector('input[type=checkbox]').checked;
-      });
+      for (var i = 0; i < items.length; i++) {
+        items[i].lbl.style.display = items[i].txt.includes(q) ? '' : 'none';
+      }
+      updateAllCb();
     });
 
-    // "Select all" only toggles visible items
     allCb.addEventListener('change', function() {
-      visibleLabels().forEach(function(lbl) {
-        lbl.querySelector('input[type=checkbox]').checked = allCb.checked;
-      });
+      var checked = allCb.checked;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].lbl.style.display !== 'none') items[i].cb.checked = checked;
+      }
     });
 
-    // Individual change: update allCb based on visible items only
-    list.addEventListener('change', function() {
-      var vl = visibleLabels();
-      allCb.checked = vl.length > 0 && vl.every(function(lbl) {
-        return lbl.querySelector('input[type=checkbox]').checked;
-      });
-    });
+    list.addEventListener('change', updateAllCb);
 
     okBtn.addEventListener('click', function() {
       var q = srch.value.trim();
-      var checked;
-      if (q) {
-        // When search is active, only use visible checked items as the filter
-        checked = new Set(
-          visibleLabels()
-            .filter(function(lbl) { return lbl.querySelector('input[type=checkbox]').checked; })
-            .map(function(lbl) { return lbl.querySelector('input[type=checkbox]').value; })
-        );
-      } else {
-        checked = new Set(Array.from(list.querySelectorAll('input:checked')).map(function(c) { return c.value; }));
+      var checked = new Set();
+      for (var i = 0; i < items.length; i++) {
+        if (q && items[i].lbl.style.display === 'none') continue;
+        if (items[i].cb.checked) checked.add(items[i].cb.value);
       }
       if (checked.size === 0 || (!q && checked.size >= vals.length)) {
         delete activeFilters[ci];

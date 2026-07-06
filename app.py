@@ -238,6 +238,10 @@ def logout():
 # -----------------------------------------------------------
 # Routes – main list
 # -----------------------------------------------------------
+@app.route('/health')
+def health():
+    return 'ok', 200
+
 @app.route('/')
 def root():
     return redirect(url_for('dashboard'))

@@ -204,6 +204,8 @@
           <th>Scanned</th>
           <th>Засварлагдсан эсэх</th>
           <th>Засварлагдсан огноо</th>
+          <th>Оруулсан ажилтан</th>
+          <th>Оруулсан огноо</th>
           <th class="col-actions">Үйлдэл</th>
         </tr>
       </thead>
@@ -263,9 +265,11 @@
             {% else %}—{% endif %}
           </td>
           <td class="text-center">{{ c.repaired_date or '—' }}</td>
+          <td class="text-center">{{ (c.uploaded_by or '').split('@')[0] or '—' }}</td>
+          <td class="text-center">{{ c.uploaded_date or '—' }}</td>
           <td class="text-center">
             <div class="action-btns">
-              <a href="{{ url_for('edit', cid=c.id) }}" class="action-btn action-btn-edit" title="Засах">
+              <a href="{{ url_for('edit', cid=c.id) }}?next={{ request.url | urlencode }}" class="action-btn action-btn-edit" title="Засах">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -464,6 +468,15 @@ document.getElementById('listForm').addEventListener('submit', function() {
     return (cell.innerText || cell.textContent || '').trim().replace(/\s+/g, ' ');
   }
 
+  // Restore saved column filters from sessionStorage (survives edit page navigation)
+  try {
+    var _saved = sessionStorage.getItem('idx_col_filters');
+    if (_saved) {
+      var _p = JSON.parse(_saved);
+      Object.keys(_p).forEach(function(k) { activeFilters[k] = new Set(_p[k]); });
+    }
+  } catch(e) {}
+
   // Pre-cache all cell text once to avoid repeated DOM reads during filtering
   var cellCache = rows.map(function(row) {
     return Array.from(row.cells).map(function(cell) { return cell ? cellText(cell) : '—'; });
@@ -510,6 +523,12 @@ document.getElementById('listForm').addEventListener('submit', function() {
     if (countEl) countEl.textContent = visible;
     var clearBar = document.getElementById('colFilterClearBar');
     if (clearBar) clearBar.style.display = hasFilter ? 'flex' : 'none';
+    // Persist filter state so it survives navigation to edit page and back
+    try {
+      var _s = {};
+      Object.keys(activeFilters).forEach(function(k) { _s[k] = Array.from(activeFilters[k]); });
+      sessionStorage.setItem('idx_col_filters', JSON.stringify(_s));
+    } catch(e) {}
   }
 
   function closeDropdown() {
@@ -669,8 +688,12 @@ document.getElementById('listForm').addEventListener('submit', function() {
 
   window.clearAllColFilters = function() {
     Object.keys(activeFilters).forEach(function(k) { delete activeFilters[k]; });
+    try { sessionStorage.removeItem('idx_col_filters'); } catch(e) {}
     applyFilters(); updateIcons();
   };
+
+  // Apply any restored filters on page load
+  if (Object.keys(activeFilters).length > 0) { applyFilters(); updateIcons(); }
 })();
 </script>
 {% endblock %}

@@ -84,7 +84,7 @@ def init_db():
     conn.commit()
     for new_col in ['status', 'return_date_2', 'return_date_3', 'return_date_4', 'return_date_5',
                     'is_inactive', 'inactive_reason', 'modified_by', 'scanned',
-                    'is_repaired', 'repaired_date']:
+                    'is_repaired', 'repaired_date', 'uploaded_by', 'uploaded_date']:
         cur.execute(f"ALTER TABLE contracts ADD COLUMN IF NOT EXISTS {new_col} TEXT")
     conn.commit()
 
@@ -495,7 +495,8 @@ def edit(cid):
         conn.close()
 
         flash('Бүртгэл амжилттай шинэчлэгдлээ!', 'success')
-        return redirect(url_for('index'))
+        next_url = request.form.get('next', '').strip()
+        return redirect(next_url if next_url else url_for('index'))
 
     cur.close()
     conn.close()
@@ -764,7 +765,8 @@ def import_confirm():
                 batch.append((dd, merchant_name, pos_serial, merchant_number, terminal_number,
                               status, pos_issue_date, phone, merchant_type, issued_by,
                               department, expected_date, received_date, overdue_days, time_category,
-                              first_inspection, description, return_date, last_inspection_date))
+                              first_inspection, description, return_date, last_inspection_date,
+                              session.get('user', ''), date.today().isoformat()))
                 if terminal_number:
                     existing_terminals.add((terminal_number, status or ''))
                 dd += 1
@@ -782,7 +784,8 @@ def import_confirm():
                 (dd, merchant_name, pos_serial, merchant_number, terminal_number,
                  status, pos_issue_date, phone, merchant_type, issued_by,
                  department, expected_date, received_date, overdue_days, time_category,
-                 first_inspection, description, return_date, last_inspection_date)
+                 first_inspection, description, return_date, last_inspection_date,
+                 uploaded_by, uploaded_date)
                 VALUES %s
             ''', batch)
 

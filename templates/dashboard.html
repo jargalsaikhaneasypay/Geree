@@ -672,6 +672,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
       <thead>
         <tr>
           <th style="width:40px">#</th>
+          <th>Ажилтан</th>
           <th>Терминал №</th>
           <th>Пос серийн №</th>
           <th>Пос огноо</th>
@@ -685,6 +686,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         {% for c in contracts %}
         <tr>
           <td class="text-center fw-600">{{ loop.index }}</td>
+          <td>{{ c.issued_by or '—' }}</td>
           <td>{{ c.terminal_number or '—' }}</td>
           <td>{{ c.pos_serial or '—' }}</td>
           <td>{{ c.pos_issue_date or '—' }}</td>

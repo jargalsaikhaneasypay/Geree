@@ -5,6 +5,7 @@
 {% block content %}
 <div class="form-layout">
   <form method="POST" action="{{ url_for('edit', cid=c.id) }}" id="contractForm">
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}" />
 
     <!-- Section 1 -->
     <div class="card form-card">

@@ -41,6 +41,16 @@
     </form>
   </div>
 
+  <!-- Sync all departments -->
+  <div style="margin-bottom:16px;text-align:right">
+    <form method="POST" action="{{ url_for('managers_sync_all_depts') }}" style="display:inline">
+      <button type="submit" class="btn btn-ghost" style="font-size:13px"
+              onclick="return confirm('Бүх гэрээний хэлтсийг менежерийн мэдээлэлд үндэслэн шинэчлэх үү?')">
+        ↻ Бүх гэрээний хэлтсийг шинэчлэх
+      </button>
+    </form>
+  </div>
+
   <!-- Managers table -->
   <div class="card table-card">
     {% if managers %}

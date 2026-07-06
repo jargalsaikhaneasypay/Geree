@@ -177,8 +177,8 @@ def row_to_dict(row):
 
 
 def sync_contracts_dept(cur, name):
-    """Recalculate department for all contracts where issued_by = name,
-    using the manager's date-based history. Returns count updated."""
+    """Recalculate department for all contracts where issued_by = name.
+    Uses best date-match; falls back to earliest entry if no match found."""
     cur.execute(
         'SELECT department, start_date FROM managers WHERE name = %s ORDER BY start_date',
         (name,)
@@ -199,11 +199,15 @@ def sync_contracts_dept(cur, name):
         except Exception:
             pos_d = date.today()
         best_dept, best_start = '', None
+        fallback_dept, fallback_start = '', None  # earliest entry, used when no date match
         for start_d, dept in history:
+            if fallback_start is None or start_d < fallback_start:
+                fallback_start, fallback_dept = start_d, dept
             if start_d <= pos_d and (best_start is None or start_d > best_start):
                 best_start, best_dept = start_d, dept
-        if best_dept:
-            cur.execute('UPDATE contracts SET department = %s WHERE id = %s', (best_dept, c['id']))
+        final_dept = best_dept or fallback_dept
+        if final_dept:
+            cur.execute('UPDATE contracts SET department = %s WHERE id = %s', (final_dept, c['id']))
             updated += 1
     return updated
 
@@ -923,6 +927,21 @@ def managers_delete(mid):
     cur.close()
     conn.close()
     flash('Устгагдлаа.', 'success')
+    return redirect(url_for('managers_list'))
+
+
+@app.route('/managers/sync-all-depts', methods=['POST'])
+@login_required
+def managers_sync_all_depts():
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT DISTINCT name FROM managers')
+    names = [r['name'] for r in cur.fetchall()]
+    total = sum(sync_contracts_dept(cur, nm) for nm in names)
+    conn.commit()
+    cur.close()
+    conn.close()
+    flash(f'Нийт {total} гэрээний хэлтэс шинэчлэгдлээ.', 'success')
     return redirect(url_for('managers_list'))
 
 

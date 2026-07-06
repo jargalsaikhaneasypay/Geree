@@ -316,9 +316,21 @@ def index():
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Year range for selectors
-    cur.execute("SELECT MIN(SUBSTRING(pos_issue_date,1,4)) AS m FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
-    min_yr = cur.fetchone()['m']
+    # Year range + global stats in one query
+    cur.execute("""
+        SELECT
+            MIN(SUBSTRING(pos_issue_date,1,4)) AS min_yr,
+            COUNT(*) AS total,
+            SUM(CASE WHEN time_category='Хугацаандаа' THEN 1 ELSE 0 END) AS on_time,
+            SUM(CASE WHEN time_category='Хугацаа хэтэрсэн' THEN 1 ELSE 0 END) AS overdue
+        FROM contracts
+        WHERE is_inactive IS DISTINCT FROM '1'
+    """)
+    stats = cur.fetchone()
+    min_yr   = stats['min_yr']
+    total    = int(stats['total'])
+    on_time  = int(stats['on_time'])
+    overdue  = int(stats['overdue'])
     min_year = int(min_yr) if min_yr else today.year
     years = list(range(today.year, min_year - 1, -1))
 
@@ -341,13 +353,6 @@ def index():
     query += ' ORDER BY dd'
     cur.execute(query, params)
     contracts = cur.fetchall()
-
-    cur.execute('SELECT COUNT(*) FROM contracts')
-    total = cur.fetchone()['count']
-    cur.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаандаа'")
-    on_time = cur.fetchone()['count']
-    cur.execute("SELECT COUNT(*) FROM contracts WHERE time_category='Хугацаа хэтэрсэн'")
-    overdue = cur.fetchone()['count']
 
     cur.close()
     conn.close()
@@ -939,18 +944,23 @@ def managers_delete(mid):
 def managers_sync_all_depts():
     try:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute('SELECT DISTINCT name FROM managers WHERE name IS NOT NULL')
-        names = [r['name'] for r in cur.fetchall()]
+        # Fetch names with one cursor, then close it
+        cur1 = conn.cursor(cursor_factory=RealDictCursor)
+        cur1.execute('SELECT DISTINCT name FROM managers WHERE name IS NOT NULL')
+        names = [r['name'] for r in cur1.fetchall()]
+        cur1.close()
+        # Use a fresh cursor for the sync work
+        cur2 = conn.cursor(cursor_factory=RealDictCursor)
         total = 0
         for nm in names:
-            total += sync_contracts_dept(cur, nm)
+            total += sync_contracts_dept(cur2, nm)
         conn.commit()
-        cur.close()
+        cur2.close()
         conn.close()
         flash(f'Нийт {total} гэрээний хэлтэс шинэчлэгдлээ.', 'success')
     except Exception as e:
-        flash(f'Алдаа: {e}', 'error')
+        import traceback
+        flash(f'Алдаа: {e} — {traceback.format_exc()[-300:]}', 'error')
     return redirect(url_for('managers_list'))
 
 
@@ -1222,47 +1232,58 @@ def dashboard():
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute("SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by")
-    all_employees = [r['issued_by'] for r in cur.fetchall()]
-
-    cur.execute("SELECT DISTINCT department FROM managers WHERE department IS NOT NULL AND department != '' ORDER BY department")
-    dash_departments = [r['department'] for r in cur.fetchall()]
+    # Merge 3 lookup queries into one
+    cur.execute("""
+        SELECT
+            (SELECT json_agg(e ORDER BY e) FROM (
+                SELECT DISTINCT issued_by AS e FROM contracts
+                WHERE issued_by IS NOT NULL AND issued_by != ''
+            ) t) AS employees,
+            (SELECT json_agg(d ORDER BY d) FROM (
+                SELECT DISTINCT department AS d FROM managers
+                WHERE department IS NOT NULL AND department != ''
+            ) t) AS departments
+    """)
+    _meta = cur.fetchone()
+    all_employees    = _meta['employees']    or []
+    dash_departments = _meta['departments']  or []
 
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}
 
-    # Recalculate time_category daily: past-deadline contracts with no received_date → Хугацаа хэтэрсэн
-    cur.execute("""
-        UPDATE contracts
-        SET time_category = 'Хугацаа хэтэрсэн',
-            overdue_days  = (CURRENT_DATE - expected_date::date)
-        WHERE expected_date IS NOT NULL AND expected_date != ''
-          AND (received_date IS NULL OR received_date = '')
-          AND expected_date::date < CURRENT_DATE
-          AND (is_inactive IS NULL OR is_inactive != '1')
-    """)
-    # Not-yet-due with no received_date → Хоосон
-    cur.execute("""
-        UPDATE contracts
-        SET time_category = 'Хоосон', overdue_days = 0
-        WHERE expected_date IS NOT NULL AND expected_date != ''
-          AND (received_date IS NULL OR received_date = '')
-          AND expected_date::date >= CURRENT_DATE
-          AND (is_inactive IS NULL OR is_inactive != '1')
-    """)
-    # Both dates set: recalculate on_time / overdue
-    cur.execute("""
-        UPDATE contracts
-        SET overdue_days  = (received_date::date - expected_date::date),
-            time_category = CASE
-              WHEN (received_date::date - expected_date::date) <= 0 THEN 'Хугацаандаа'
-              ELSE 'Хугацаа хэтэрсэн'
-            END
-        WHERE expected_date IS NOT NULL AND expected_date != ''
-          AND received_date  IS NOT NULL AND received_date  != ''
-          AND (is_inactive IS NULL OR is_inactive != '1')
-    """)
-    conn.commit()
+    # Recalculate time_category once per day (skip if already done today)
+    today_str = today.isoformat()
+    if session.get('_tc_updated') != today_str:
+        cur.execute("""
+            UPDATE contracts
+            SET time_category = 'Хугацаа хэтэрсэн',
+                overdue_days  = (CURRENT_DATE - expected_date::date)
+            WHERE expected_date IS NOT NULL AND expected_date != ''
+              AND (received_date IS NULL OR received_date = '')
+              AND expected_date::date < CURRENT_DATE
+              AND (is_inactive IS NULL OR is_inactive != '1')
+        """)
+        cur.execute("""
+            UPDATE contracts
+            SET time_category = 'Хоосон', overdue_days = 0
+            WHERE expected_date IS NOT NULL AND expected_date != ''
+              AND (received_date IS NULL OR received_date = '')
+              AND expected_date::date >= CURRENT_DATE
+              AND (is_inactive IS NULL OR is_inactive != '1')
+        """)
+        cur.execute("""
+            UPDATE contracts
+            SET overdue_days  = (received_date::date - expected_date::date),
+                time_category = CASE
+                  WHEN (received_date::date - expected_date::date) <= 0 THEN 'Хугацаандаа'
+                  ELSE 'Хугацаа хэтэрсэн'
+                END
+            WHERE expected_date IS NOT NULL AND expected_date != ''
+              AND received_date  IS NOT NULL AND received_date  != ''
+              AND (is_inactive IS NULL OR is_inactive != '1')
+        """)
+        conn.commit()
+        session['_tc_updated'] = today_str
 
     # For year period use SUBSTRING match so dates like '2026/01/05' (non-ISO) are included
     if period == 'year':

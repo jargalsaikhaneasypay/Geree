@@ -199,8 +199,12 @@ def sync_contracts_dept(cur, name):
         except Exception:
             pos_d = date.today()
         best_dept, best_start = '', None
-        fallback_dept, fallback_start = '', None  # earliest entry, used when no date match
+        fallback_dept, fallback_start = '', None
         for start_d, dept in history:
+            if start_d is None:
+                if not fallback_dept:
+                    fallback_dept = dept
+                continue
             if fallback_start is None or start_d < fallback_start:
                 fallback_start, fallback_dept = start_d, dept
             if start_d <= pos_d and (best_start is None or start_d > best_start):
@@ -933,15 +937,20 @@ def managers_delete(mid):
 @app.route('/managers/sync-all-depts', methods=['POST'])
 @login_required
 def managers_sync_all_depts():
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute('SELECT DISTINCT name FROM managers')
-    names = [r['name'] for r in cur.fetchall()]
-    total = sum(sync_contracts_dept(cur, nm) for nm in names)
-    conn.commit()
-    cur.close()
-    conn.close()
-    flash(f'Нийт {total} гэрээний хэлтэс шинэчлэгдлээ.', 'success')
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT DISTINCT name FROM managers WHERE name IS NOT NULL')
+        names = [r['name'] for r in cur.fetchall()]
+        total = 0
+        for nm in names:
+            total += sync_contracts_dept(cur, nm)
+        conn.commit()
+        cur.close()
+        conn.close()
+        flash(f'Нийт {total} гэрээний хэлтэс шинэчлэгдлээ.', 'success')
+    except Exception as e:
+        flash(f'Алдаа: {e}', 'error')
     return redirect(url_for('managers_list'))
 
 

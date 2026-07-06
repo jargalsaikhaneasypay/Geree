@@ -20,9 +20,9 @@ app.secret_key = os.environ.get('SECRET_KEY', 'contract-registry-secret-2026')
 # Users
 # -----------------------------------------------------------
 USERS = {
-    'bolor-erdene@easypay.mn': generate_password_hash('Bolor2026!'),
-    'uyanga@easypay.mn':       generate_password_hash('Uyanga2026!'),
-    'myagmarsuren_lkh@easypay.mn': generate_password_hash('Myagmar2026!'),
+    'bolor-erdene@easypay.mn': generate_password_hash('Bolor2026!', method='pbkdf2:sha256'),
+    'uyanga@easypay.mn':       generate_password_hash('Uyanga2026!', method='pbkdf2:sha256'),
+    'myagmarsuren_lkh@easypay.mn': generate_password_hash('Myagmar2026!', method='pbkdf2:sha256'),
 }
 
 def login_required(f):
@@ -1530,14 +1530,11 @@ def ensure_db():
             import traceback
             _db_init_error = traceback.format_exc()
 
-@app.errorhandler(500)
-def server_error(e):
+@app.errorhandler(Exception)
+def handle_any_error(e):
     import traceback
-    tb = traceback.format_exc()
-    msg = f'<pre style="font-size:13px;padding:20px">' \
-          f'<b>500 Internal Server Error</b>\n\n{tb}\n\n' \
-          f'<b>DB init error (if any):</b>\n{_db_init_error or "none"}</pre>'
-    return msg, 500
+    tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+    return '<pre style="padding:20px;font-size:13px">' + tb + '</pre>', 500
 
 if __name__ == '__main__':
     init_db()

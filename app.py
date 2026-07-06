@@ -1519,14 +1519,30 @@ def autocomplete():
 
 
 _db_ready = False
+_db_init_error = None
+
 @app.before_request
 def ensure_db():
-    global _db_ready
+    global _db_ready, _db_init_error
     if not _db_ready:
+        _db_ready = True  # set first so a crash doesn't retry on every request
         if not os.environ.get('DATABASE_URL'):
-            raise RuntimeError('DATABASE_URL environment variable is not set in Render!')
-        init_db()
-        _db_ready = True
+            _db_init_error = 'DATABASE_URL environment variable is not set!'
+            return
+        try:
+            init_db()
+        except Exception as e:
+            import traceback
+            _db_init_error = traceback.format_exc()
+
+@app.errorhandler(500)
+def server_error(e):
+    import traceback
+    tb = traceback.format_exc()
+    msg = f'<pre style="font-size:13px;padding:20px">' \
+          f'<b>500 Internal Server Error</b>\n\n{tb}\n\n' \
+          f'<b>DB init error (if any):</b>\n{_db_init_error or "none"}</pre>'
+    return msg, 500
 
 if __name__ == '__main__':
     init_db()

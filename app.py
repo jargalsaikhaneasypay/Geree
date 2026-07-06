@@ -111,27 +111,22 @@ def init_db():
     """)
     conn.commit()
 
-    # Migrate old data: both dates blank → Хоосон
-    cur.execute("""
-        UPDATE contracts
-        SET time_category = 'Хоосон', overdue_days = NULL
-        WHERE (expected_date IS NULL OR expected_date = '')
-          AND (received_date IS NULL OR received_date = '')
-    """)
-    # Migrate old data: expected set, not yet received, still within deadline → Хоосон
-    cur.execute("""
-        UPDATE contracts
-        SET time_category = 'Хоосон', overdue_days = 0
-        WHERE expected_date IS NOT NULL AND expected_date != ''
-          AND (received_date IS NULL OR received_date = '')
-          AND expected_date::date >= CURRENT_DATE
-    """)
-    # Rename ХҮА → ХҮТ in both tables (covers old ХҮА and intermediate ХҮАжилтан)
-    cur.execute("UPDATE contracts SET department = 'ХҮТ' WHERE department IN ('ХҮА', 'ХҮАжилтан')")
-    cur.execute("UPDATE managers  SET department = 'ХҮТ' WHERE department IN ('ХҮА', 'ХҮАжилтан')")
-    # Rename Хөдөө орон нутаг → Хө/орон нутаг in both tables
-    cur.execute("UPDATE contracts SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")
-    cur.execute("UPDATE managers  SET department = 'Хө/орон нутаг' WHERE department = 'Хөдөө орон нутаг'")
+    # Run each migration in its own savepoint so a failure doesn't abort the whole transaction
+    migrations = [
+        "UPDATE contracts SET time_category='Хоосон', overdue_days=NULL WHERE (expected_date IS NULL OR expected_date='') AND (received_date IS NULL OR received_date='')",
+        "UPDATE contracts SET time_category='Хоосон', overdue_days=0 WHERE expected_date IS NOT NULL AND expected_date!='' AND (received_date IS NULL OR received_date='') AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}$' AND expected_date::date >= CURRENT_DATE",
+        "UPDATE contracts SET department='ХҮТ' WHERE department IN ('ХҮА','ХҮАжилтан')",
+        "UPDATE managers  SET department='ХҮТ' WHERE department IN ('ХҮА','ХҮАжилтан')",
+        "UPDATE contracts SET department='Хө/орон нутаг' WHERE department='Хөдөө орон нутаг'",
+        "UPDATE managers  SET department='Хө/орон нутаг' WHERE department='Хөдөө орон нутаг'",
+    ]
+    for sql in migrations:
+        try:
+            cur.execute("SAVEPOINT mig")
+            cur.execute(sql)
+            cur.execute("RELEASE SAVEPOINT mig")
+        except Exception:
+            cur.execute("ROLLBACK TO SAVEPOINT mig")
     conn.commit()
     cur.close()
     conn.close()

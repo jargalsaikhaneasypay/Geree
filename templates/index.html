@@ -177,6 +177,18 @@
 <!-- Table -->
 <div class="card table-card">
   {% if contracts %}
+  <div class="col-vis-bar">
+    <div class="col-vis-wrap">
+      <button class="col-vis-btn" id="colVisBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+          <rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/>
+        </svg>
+        Баганууд<span id="colVisBadge"></span>
+      </button>
+      <div class="col-vis-drop" id="colVisDrop"></div>
+    </div>
+  </div>
+  <style id="colHideStyle"></style>
   <div class="table-scroll">
     <table class="data-table">
       <thead>
@@ -419,6 +431,19 @@ document.getElementById('listForm').addEventListener('submit', function() {
 }
 .col-filter-icon:hover  { background: #e2e8f0; color: #1E3A5F; border-color: #c8d0db; }
 .col-filter-icon-active { color: #D4800A !important; background: #FEF3E2 !important; border-color: #D4800A !important; }
+
+/* Column visibility toggle */
+.col-vis-bar { padding: 6px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.col-vis-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.col-vis-btn:hover { background: #e8eef5; color: var(--primary); border-color: #b0bfd0; }
+.col-vis-btn-active { color: var(--primary) !important; border-color: var(--primary) !important; background: #EEF4FF !important; }
+.col-vis-wrap { position: relative; }
+.col-vis-drop { position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.14); min-width: 200px; max-height: 340px; overflow-y: auto; z-index: 3000; display: none; padding: 6px 0; }
+.col-vis-drop.open { display: block; }
+.col-vis-item { display: flex; align-items: center; gap: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; user-select: none; }
+.col-vis-item:hover { background: var(--bg); }
+.col-vis-item input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+.col-vis-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 .col-filter-dropdown {
   position: fixed; z-index: 3000;
@@ -685,6 +710,81 @@ document.getElementById('listForm').addEventListener('submit', function() {
 
   // Apply any restored filters on page load
   if (Object.keys(activeFilters).length > 0) { applyFilters(); updateIcons(); }
+})();
+
+// ---- Column visibility ----
+(function() {
+  var COL_NAMES = [
+    null,
+    'Мерчантын нэр','Посын сериал','Мерч. дугаар','Терминал',
+    'Төлөв','Пос огноо','Утас','Хэлбэр','Ажилтан','Хэлтэс',
+    'Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал',
+    'Эхний хяналтын үр дүн','Тайлбар','Буцаасан огноо','Сүүлийн хяналт',
+    'Зассан','Scanned','Засварлагдсан эсэх','Засварлагдсан огноо',
+    'Оруулсан ажилтан','Оруулсан огноо',
+    null
+  ];
+  var HIDE_KEY = 'idx_hidden_cols';
+  var btn    = document.getElementById('colVisBtn');
+  var drop   = document.getElementById('colVisDrop');
+  var badge  = document.getElementById('colVisBadge');
+  var style  = document.getElementById('colHideStyle');
+  if (!btn || !drop || !style) return;
+
+  // Load saved state
+  var hiddenSet = {};
+  try { var _s = localStorage.getItem(HIDE_KEY); if (_s) JSON.parse(_s).forEach(function(i){ hiddenSet[i]=true; }); } catch(e){}
+
+  // Build dropdown
+  var frag = document.createDocumentFragment();
+  // "Show all" link
+  var showAll = document.createElement('div');
+  showAll.className = 'col-vis-item';
+  showAll.style.cssText = 'font-weight:600;color:var(--primary)';
+  showAll.textContent = '✓ Бүгдийг харуулах';
+  showAll.addEventListener('click', function() {
+    hiddenSet = {};
+    drop.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+    saveApply();
+  });
+  frag.appendChild(showAll);
+  var sep = document.createElement('div'); sep.className = 'col-vis-sep'; frag.appendChild(sep);
+
+  COL_NAMES.forEach(function(name, i) {
+    if (name === null) return;
+    var lbl = document.createElement('label'); lbl.className = 'col-vis-item';
+    var cb  = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !hiddenSet[i];
+    cb.addEventListener('change', function() {
+      if (this.checked) delete hiddenSet[i]; else hiddenSet[i] = true;
+      saveApply();
+    });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + name));
+    frag.appendChild(lbl);
+  });
+  drop.appendChild(frag);
+
+  function saveApply() {
+    var hidden = Object.keys(hiddenSet).map(Number);
+    try { localStorage.setItem(HIDE_KEY, JSON.stringify(hidden)); } catch(e){}
+    var rules = hidden.map(function(ci) {
+      var n = ci + 1;
+      return '.data-table thead tr th:nth-child('+n+'),.data-table tbody tr td:nth-child('+n+'){display:none!important}';
+    }).join('');
+    style.textContent = rules;
+    var cnt = hidden.length;
+    badge.textContent = cnt ? ' ('+cnt+')' : '';
+    if (cnt > 0) btn.classList.add('col-vis-btn-active'); else btn.classList.remove('col-vis-btn-active');
+  }
+
+  // Apply on load
+  saveApply();
+
+  // Toggle dropdown
+  btn.addEventListener('click', function(e) { e.stopPropagation(); drop.classList.toggle('open'); });
+  document.addEventListener('click', function(e) {
+    if (!drop.contains(e.target) && e.target !== btn) drop.classList.remove('open');
+  });
 })();
 </script>
 {% endblock %}

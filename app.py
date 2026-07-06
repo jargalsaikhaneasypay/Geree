@@ -176,6 +176,38 @@ def row_to_dict(row):
     return dict(row) if row else None
 
 
+def sync_contracts_dept(cur, name):
+    """Recalculate department for all contracts where issued_by = name,
+    using the manager's date-based history. Returns count updated."""
+    cur.execute(
+        'SELECT department, start_date FROM managers WHERE name = %s ORDER BY start_date',
+        (name,)
+    )
+    history = [(r['start_date'], r['department']) for r in cur.fetchall()]
+    if not history:
+        return 0
+
+    cur.execute(
+        "SELECT id, pos_issue_date FROM contracts WHERE issued_by = %s",
+        (name,)
+    )
+    contracts = cur.fetchall()
+    updated = 0
+    for c in contracts:
+        try:
+            pos_d = datetime.strptime((c['pos_issue_date'] or '')[:10], '%Y-%m-%d').date()
+        except Exception:
+            pos_d = date.today()
+        best_dept, best_start = '', None
+        for start_d, dept in history:
+            if start_d <= pos_d and (best_start is None or start_d > best_start):
+                best_start, best_dept = start_d, dept
+        if best_dept:
+            cur.execute('UPDATE contracts SET department = %s WHERE id = %s', (best_dept, c['id']))
+            updated += 1
+    return updated
+
+
 # -----------------------------------------------------------
 # Auth routes
 # -----------------------------------------------------------
@@ -835,12 +867,15 @@ def managers_add():
         return redirect(url_for('managers_list'))
     try:
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute('INSERT INTO managers (name, department, start_date) VALUES (%s, %s, %s)', (name, dept, start_date))
+        n = sync_contracts_dept(cur, name)
         conn.commit()
         cur.close()
         conn.close()
         flash(f'"{name}" нэмэгдлээ.', 'success')
+        if n:
+            flash(f'{n} гэрээний хэлтэс автоматаар шинэчлэгдлээ.', 'success')
     except Exception as e:
         flash(f'Алдаа: {e}', 'error')
     return redirect(url_for('managers_list'))
@@ -858,12 +893,21 @@ def managers_edit(mid):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT name FROM managers WHERE id = %s', (mid,))
+        old = cur.fetchone()
+        old_name = old['name'] if old else name
         cur.execute('UPDATE managers SET name = %s, department = %s, start_date = %s WHERE id = %s',
                     (name, dept, start_date, mid))
+        names = set([name])
+        if old_name != name:
+            names.add(old_name)
+        n = sum(sync_contracts_dept(cur, nm) for nm in names)
         conn.commit()
         cur.close()
         conn.close()
         flash('Өөрчлөлт хадгалагдлаа.', 'success')
+        if n:
+            flash(f'{n} гэрээний хэлтэс автоматаар шинэчлэгдлээ.', 'success')
     except Exception as e:
         flash(f'Алдаа: {e}', 'error')
     return redirect(url_for('managers_list'))

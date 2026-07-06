@@ -328,9 +328,9 @@ def index():
     """)
     stats = cur.fetchone()
     min_yr   = stats['min_yr']
-    total    = int(stats['total'])
-    on_time  = int(stats['on_time'])
-    overdue  = int(stats['overdue'])
+    total    = int(stats['total'] or 0)
+    on_time  = int(stats['on_time'] or 0)
+    overdue  = int(stats['overdue'] or 0)
     min_year = int(min_yr) if min_yr else today.year
     years = list(range(today.year, min_year - 1, -1))
 
@@ -1232,21 +1232,11 @@ def dashboard():
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Merge 3 lookup queries into one
-    cur.execute("""
-        SELECT
-            (SELECT json_agg(e ORDER BY e) FROM (
-                SELECT DISTINCT issued_by AS e FROM contracts
-                WHERE issued_by IS NOT NULL AND issued_by != ''
-            ) t) AS employees,
-            (SELECT json_agg(d ORDER BY d) FROM (
-                SELECT DISTINCT department AS d FROM managers
-                WHERE department IS NOT NULL AND department != ''
-            ) t) AS departments
-    """)
-    _meta = cur.fetchone()
-    all_employees    = _meta['employees']    or []
-    dash_departments = _meta['departments']  or []
+    cur.execute("SELECT DISTINCT issued_by FROM contracts WHERE issued_by IS NOT NULL AND issued_by != '' ORDER BY issued_by")
+    all_employees = [r['issued_by'] for r in cur.fetchall()]
+
+    cur.execute("SELECT DISTINCT department FROM managers WHERE department IS NOT NULL AND department != '' ORDER BY department")
+    dash_departments = [r['department'] for r in cur.fetchall()]
 
     cur.execute("SELECT name, department FROM managers ORDER BY name")
     mgr_dept_map = {r['name']: r['department'] for r in cur.fetchall()}

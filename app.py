@@ -49,7 +49,11 @@ INSPECTION_RESULTS = [
 # Database helpers
 # -----------------------------------------------------------
 def get_db():
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL', ''), sslmode='require')
+    url = os.environ.get('DATABASE_URL', '')
+    # psycopg2 requires postgresql:// not postgres://
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[len('postgres://'):]
+    conn = psycopg2.connect(url, sslmode='require', connect_timeout=10)
     return conn
 
 

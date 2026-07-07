@@ -583,10 +583,11 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 <div class="db-charts-row">
 
   <!-- Dept breakdown table -->
-  <div class="card db-chart-card db-chart-wide">
+  <div class="card db-chart-card db-chart-wide" style="overflow:hidden">
     <h3 class="db-chart-title">Хэлтсийн задаргаа</h3>
     {% if dept_stats %}
-    <table class="data-table" style="font-size:13px">
+    <div style="overflow-x:auto">
+    <table class="data-table" style="font-size:13px;min-width:520px">
       <thead>
         <tr>
           <th>Хэлтэс</th>
@@ -622,6 +623,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <div class="empty-chart">Мэдээлэл байхгүй</div>
     {% endif %}
@@ -636,7 +638,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         {% for result, cnt in insp_counts.items() %}
         {% set is_full = result in ['1.Бүрэн', '3.Салбар дээр архивлагдсан/бүрэн'] %}
         <div class="bar-item">
-          <span class="bar-label" style="width:210px;font-size:12px">{{ result }}</span>
+          <span class="bar-label" style="max-width:210px;min-width:100px;font-size:12px">{{ result }}</span>
           <div class="bar-track">
             <div class="bar-fill" style="width:{{ (cnt / max_ic * 100)|int }}%;background:{% if is_full %}#1A7F4F{% else %}#C0392B{% endif %}"></div>
           </div>

@@ -242,6 +242,29 @@ def logout():
 def health():
     return 'ok', 200
 
+@app.route('/db-status')
+def db_status():
+    import html as _html
+    lines = []
+    lines.append(f'_db_ready: {_db_ready}')
+    lines.append(f'_db_init_error: {_db_init_error or "none"}')
+    db_url = os.environ.get('DATABASE_URL', '')
+    lines.append(f'DATABASE_URL set: {bool(db_url)}')
+    if db_url:
+        lines.append(f'DATABASE_URL prefix: {db_url[:20]}...')
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute('SELECT COUNT(*) FROM contracts')
+        cnt = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        lines.append(f'DB connection: OK  (contracts rows: {cnt})')
+    except Exception as ex:
+        lines.append(f'DB connection: FAILED — {ex}')
+    body = _html.escape('\n'.join(lines))
+    return f'<pre style="padding:20px;font-size:13px">{body}</pre>', 200
+
 @app.route('/')
 def root():
     return redirect(url_for('dashboard'))
@@ -1243,34 +1266,41 @@ def dashboard():
     # Recalculate time_category once per day (skip if already done today)
     today_str = today.isoformat()
     if session.get('_tc_updated') != today_str:
-        cur.execute("""
-            UPDATE contracts
-            SET time_category = 'Хугацаа хэтэрсэн',
-                overdue_days  = (CURRENT_DATE - expected_date::date)
-            WHERE expected_date IS NOT NULL AND expected_date != ''
-              AND (received_date IS NULL OR received_date = '')
-              AND expected_date::date < CURRENT_DATE
-              AND (is_inactive IS NULL OR is_inactive != '1')
-        """)
-        cur.execute("""
-            UPDATE contracts
-            SET time_category = 'Хоосон', overdue_days = 0
-            WHERE expected_date IS NOT NULL AND expected_date != ''
-              AND (received_date IS NULL OR received_date = '')
-              AND expected_date::date >= CURRENT_DATE
-              AND (is_inactive IS NULL OR is_inactive != '1')
-        """)
-        cur.execute("""
-            UPDATE contracts
-            SET overdue_days  = (received_date::date - expected_date::date),
-                time_category = CASE
-                  WHEN (received_date::date - expected_date::date) <= 0 THEN 'Хугацаандаа'
-                  ELSE 'Хугацаа хэтэрсэн'
-                END
-            WHERE expected_date IS NOT NULL AND expected_date != ''
-              AND received_date  IS NOT NULL AND received_date  != ''
-              AND (is_inactive IS NULL OR is_inactive != '1')
-        """)
+        tc_queries = [
+            """UPDATE contracts
+               SET time_category = 'Хугацаа хэтэрсэн',
+                   overdue_days  = (CURRENT_DATE - expected_date::date)
+               WHERE expected_date IS NOT NULL AND expected_date != ''
+                 AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+                 AND (received_date IS NULL OR received_date = '')
+                 AND expected_date::date < CURRENT_DATE
+                 AND (is_inactive IS NULL OR is_inactive != '1')""",
+            """UPDATE contracts
+               SET time_category = 'Хоосон', overdue_days = 0
+               WHERE expected_date IS NOT NULL AND expected_date != ''
+                 AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+                 AND (received_date IS NULL OR received_date = '')
+                 AND expected_date::date >= CURRENT_DATE
+                 AND (is_inactive IS NULL OR is_inactive != '1')""",
+            """UPDATE contracts
+               SET overdue_days  = (received_date::date - expected_date::date),
+                   time_category = CASE
+                     WHEN (received_date::date - expected_date::date) <= 0 THEN 'Хугацаандаа'
+                     ELSE 'Хугацаа хэтэрсэн'
+                   END
+               WHERE expected_date IS NOT NULL AND expected_date != ''
+                 AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+                 AND received_date  IS NOT NULL AND received_date  != ''
+                 AND received_date  ~ '^\\d{4}-\\d{2}-\\d{2}'
+                 AND (is_inactive IS NULL OR is_inactive != '1')""",
+        ]
+        for sql in tc_queries:
+            try:
+                cur.execute("SAVEPOINT tc")
+                cur.execute(sql)
+                cur.execute("RELEASE SAVEPOINT tc")
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT tc")
         conn.commit()
         session['_tc_updated'] = today_str
 
@@ -1536,9 +1566,13 @@ def ensure_db():
 
 @app.errorhandler(Exception)
 def handle_any_error(e):
-    import traceback
-    tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
-    return '<pre style="padding:20px;font-size:13px">' + tb + '</pre>', 500
+    import traceback, html as _html
+    try:
+        tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+        body = _html.escape(tb)
+    except Exception:
+        body = str(e)
+    return f'<pre style="padding:20px;font-size:13px">{body}</pre>', 500
 
 if __name__ == '__main__':
     init_db()

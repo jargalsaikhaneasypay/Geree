@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, g
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import pool as _pg_pool
 import os
 import tempfile
 import json
@@ -46,15 +47,88 @@ INSPECTION_RESULTS = [
 ]
 
 # -----------------------------------------------------------
-# Database helpers
+# Database helpers  – per-worker connection pool
 # -----------------------------------------------------------
-def get_db():
+_pool = None
+
+def _db_url():
     url = os.environ.get('DATABASE_URL', '')
-    # psycopg2 requires postgresql:// not postgres://
     if url.startswith('postgres://'):
         url = 'postgresql://' + url[len('postgres://'):]
-    conn = psycopg2.connect(url, sslmode='require', connect_timeout=10)
-    return conn
+    return url
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        url = _db_url()
+        if url:
+            _pool = _pg_pool.SimpleConnectionPool(
+                1, 3, url,
+                sslmode='require', connect_timeout=10,
+                keepalives=1, keepalives_idle=30,
+                keepalives_interval=10, keepalives_count=5,
+            )
+    return _pool
+
+
+class _DBConn:
+    """Thin wrapper so routes can call conn.close() without destroying
+    the pooled connection — teardown_appcontext handles the real cleanup."""
+    __slots__ = ('_c',)
+    def __init__(self, c): self._c = c
+    def cursor(self, **kw): return self._c.cursor(**kw)
+    def commit(self):       return self._c.commit()
+    def rollback(self):     return self._c.rollback()
+    def close(self):        pass   # intentional no-op
+    @property
+    def closed(self):  return self._c.closed
+    @property
+    def status(self):  return self._c.status
+
+
+def get_db():
+    if 'db' not in g:
+        pool = _get_pool()
+        raw = None
+        if pool:
+            for _ in range(2):   # retry once if we get a dead connection
+                raw = pool.getconn()
+                if raw.closed == 0:
+                    try:
+                        raw.poll()
+                        if raw.status != psycopg2.extensions.STATUS_READY:
+                            raw.rollback()
+                        break
+                    except Exception:
+                        pool.putconn(raw, close=True)
+                        raw = None
+                else:
+                    pool.putconn(raw, close=True)
+                    raw = None
+        if raw is None:          # pool unavailable — fall back to direct
+            raw = psycopg2.connect(_db_url(), sslmode='require',
+                                   connect_timeout=10)
+        g.db = raw
+        g.db_wrapper = _DBConn(raw)
+    return g.db_wrapper
+
+
+@app.teardown_appcontext
+def _teardown_db(_exc):
+    raw = g.pop('db', None)
+    if raw is None:
+        return
+    pool = _pool
+    try:
+        if raw.closed == 0 and raw.status != psycopg2.extensions.STATUS_READY:
+            raw.rollback()
+        if pool:
+            pool.putconn(raw)   # return to pool — keeps connection alive
+        else:
+            raw.close()
+    except Exception:
+        try: raw.close()
+        except Exception: pass
 
 
 def init_db():
@@ -1408,24 +1482,42 @@ def dashboard():
         if r['return_date'] or r['return_date_2'] or r['return_date_3'] or r['return_date_4'] or r['return_date_5']:
             dept_stats[d]['returned'] += 1
 
-    trend = []
+    # Build 6-month range list (oldest first)
+    month_ranges = []
     for i in range(5, -1, -1):
-        month = today.month - i
-        year  = today.year
-        while month <= 0:
-            month += 12; year -= 1
-        m_from = dt_date(year, month, 1).isoformat()
-        m_to   = dt_date(year, month, calendar.monthrange(year, month)[1]).isoformat()
-        base_all  = "pos_issue_date BETWEEN %s AND %s AND (is_inactive IS NULL OR is_inactive != '1')"
-        base_timed = base_all + " AND time_category != 'Хоосон'"
-        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_all}", [m_from, m_to])
-        t_total = cur.fetchone()['count']
-        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_all} AND time_category='Хоосон'", [m_from, m_to])
-        t_hoosoon = cur.fetchone()['count']
-        cur.execute(f"SELECT COUNT(*) FROM contracts WHERE {base_timed} AND time_category='Хугацаандаа'", [m_from, m_to])
-        t_on = cur.fetchone()['count']
-        t_timed = t_total - t_hoosoon
-        trend.append({'label': MONTHS_MN[month - 1], 'total': t_total, 'on_time': t_on, 'overdue': t_timed - t_on, 'hoosoon': t_hoosoon})
+        mo = today.month - i
+        yr = today.year
+        while mo <= 0:
+            mo += 12; yr -= 1
+        month_ranges.append((yr, mo))
+    trend_from = dt_date(month_ranges[0][0], month_ranges[0][1], 1).isoformat()
+    trend_to   = dt_date(month_ranges[-1][0], month_ranges[-1][1],
+                         calendar.monthrange(month_ranges[-1][0], month_ranges[-1][1])[1]).isoformat()
+
+    # Single query replaces 18 separate COUNT queries
+    cur.execute("""
+        SELECT
+            SUBSTRING(pos_issue_date, 1, 7) AS ym,
+            COUNT(*) AS total,
+            SUM(CASE WHEN time_category = 'Хоосон'      THEN 1 ELSE 0 END) AS hoosoon,
+            SUM(CASE WHEN time_category = 'Хугацаандаа' THEN 1 ELSE 0 END) AS on_time
+        FROM contracts
+        WHERE (is_inactive IS NULL OR is_inactive != '1')
+          AND pos_issue_date BETWEEN %s AND %s
+        GROUP BY 1
+    """, [trend_from, trend_to])
+    trend_data = {r['ym']: r for r in cur.fetchall()}
+
+    trend = []
+    for yr, mo in month_ranges:
+        ym  = f'{yr}-{mo:02d}'
+        row = trend_data.get(ym, {})
+        t_total   = int(row.get('total')   or 0)
+        t_hoosoon = int(row.get('hoosoon') or 0)
+        t_on      = int(row.get('on_time') or 0)
+        t_timed   = t_total - t_hoosoon
+        trend.append({'label': MONTHS_MN[mo - 1], 'total': t_total,
+                      'on_time': t_on, 'overdue': t_timed - t_on, 'hoosoon': t_hoosoon})
 
     cur.execute("SELECT MIN(SUBSTRING(pos_issue_date, 1, 4)) AS min_year FROM contracts WHERE pos_issue_date IS NOT NULL AND pos_issue_date != ''")
     min_year_row = cur.fetchone()['min_year']

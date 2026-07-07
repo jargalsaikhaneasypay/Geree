@@ -177,42 +177,36 @@ def row_to_dict(row):
 
 def sync_contracts_dept(cur, name):
     """Recalculate department for all contracts where issued_by = name.
-    Uses best date-match; falls back to earliest entry if no match found."""
-    cur.execute(
-        'SELECT department, start_date FROM managers WHERE name = %s ORDER BY start_date',
-        (name,)
-    )
-    history = [(r['start_date'], r['department']) for r in cur.fetchall()]
-    if not history:
-        return 0
-
-    cur.execute(
-        "SELECT id, pos_issue_date FROM contracts WHERE issued_by = %s",
-        (name,)
-    )
-    contracts = cur.fetchall()
-    updated = 0
-    for c in contracts:
-        try:
-            pos_d = datetime.strptime((c['pos_issue_date'] or '')[:10], '%Y-%m-%d').date()
-        except Exception:
-            pos_d = date.today()
-        best_dept, best_start = '', None
-        fallback_dept, fallback_start = '', None
-        for start_d, dept in history:
-            if start_d is None:
-                if not fallback_dept:
-                    fallback_dept = dept
-                continue
-            if fallback_start is None or start_d < fallback_start:
-                fallback_start, fallback_dept = start_d, dept
-            if start_d <= pos_d and (best_start is None or start_d > best_start):
-                best_start, best_dept = start_d, dept
-        final_dept = best_dept or fallback_dept
-        if final_dept:
-            cur.execute('UPDATE contracts SET department = %s WHERE id = %s', (final_dept, c['id']))
-            updated += 1
-    return updated
+    Single SQL UPDATE: best date-match, fallback to earliest entry."""
+    cur.execute('''
+        WITH dept_choice AS (
+            SELECT
+                c.id,
+                COALESCE(
+                    (SELECT m.department
+                     FROM managers m
+                     WHERE m.name = %(n)s
+                       AND m.start_date IS NOT NULL
+                       AND c.pos_issue_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+                       AND m.start_date <= c.pos_issue_date::date
+                     ORDER BY m.start_date DESC
+                     LIMIT 1),
+                    (SELECT m.department
+                     FROM managers m
+                     WHERE m.name = %(n)s
+                     ORDER BY m.start_date ASC NULLS LAST
+                     LIMIT 1)
+                ) AS new_dept
+            FROM contracts c
+            WHERE c.issued_by = %(n)s
+        )
+        UPDATE contracts
+        SET department = dept_choice.new_dept
+        FROM dept_choice
+        WHERE contracts.id = dept_choice.id
+          AND dept_choice.new_dept IS NOT NULL
+    ''', {'n': name})
+    return cur.rowcount
 
 
 # -----------------------------------------------------------
@@ -970,18 +964,41 @@ def managers_delete(mid):
 def managers_sync_all_depts():
     try:
         conn = get_db()
-        # Fetch names with one cursor, then close it
-        cur1 = conn.cursor(cursor_factory=RealDictCursor)
-        cur1.execute('SELECT DISTINCT name FROM managers WHERE name IS NOT NULL')
-        names = [r['name'] for r in cur1.fetchall()]
-        cur1.close()
-        # Use a fresh cursor for the sync work
-        cur2 = conn.cursor(cursor_factory=RealDictCursor)
-        total = 0
-        for nm in names:
-            total += sync_contracts_dept(cur2, nm)
+        cur = conn.cursor()
+        # Single bulk UPDATE for all managers at once — no Python loop, no timeout risk
+        cur.execute('''
+            WITH dept_choice AS (
+                SELECT
+                    c.id,
+                    COALESCE(
+                        (SELECT m.department
+                         FROM managers m
+                         WHERE m.name = c.issued_by
+                           AND m.start_date IS NOT NULL
+                           AND c.pos_issue_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+                           AND m.start_date <= c.pos_issue_date::date
+                         ORDER BY m.start_date DESC
+                         LIMIT 1),
+                        (SELECT m.department
+                         FROM managers m
+                         WHERE m.name = c.issued_by
+                         ORDER BY m.start_date ASC NULLS LAST
+                         LIMIT 1)
+                    ) AS new_dept
+                FROM contracts c
+                WHERE c.issued_by IN (
+                    SELECT DISTINCT name FROM managers WHERE name IS NOT NULL
+                )
+            )
+            UPDATE contracts
+            SET department = dept_choice.new_dept
+            FROM dept_choice
+            WHERE contracts.id = dept_choice.id
+              AND dept_choice.new_dept IS NOT NULL
+        ''')
+        total = cur.rowcount
         conn.commit()
-        cur2.close()
+        cur.close()
         conn.close()
         flash(f'Нийт {total} гэрээний хэлтэс шинэчлэгдлээ.', 'success')
     except Exception as e:
@@ -1570,12 +1587,15 @@ def ensure_db():
 
 @app.errorhandler(Exception)
 def handle_any_error(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e  # pass 404 / 405 etc. through normally
     import traceback, html as _html
     try:
         tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
         body = _html.escape(tb)
     except Exception:
-        body = str(e)
+        body = _html.escape(str(e))
     return f'<pre style="padding:20px;font-size:13px">{body}</pre>', 500
 
 if __name__ == '__main__':

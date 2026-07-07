@@ -3,7 +3,7 @@ services:
     name: contract-registry
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --capture-output --log-level debug
+    startCommand: gunicorn app:app --capture-output --log-level debug --timeout 120
     envVars:
       - key: SECRET_KEY
         generateValue: true

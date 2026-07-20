@@ -218,6 +218,7 @@
           <th>Засварлагдсан огноо</th>
           <th>Оруулсан ажилтан</th>
           <th>Оруулсан огноо</th>
+          <th>Идэвхжил</th>
           <th class="col-actions">Үйлдэл</th>
         </tr>
       </thead>
@@ -279,6 +280,12 @@
           <td class="text-center">{{ c.repaired_date or '—' }}</td>
           <td class="text-center">{{ (c.uploaded_by or '').split('@')[0] or '—' }}</td>
           <td class="text-center">{{ c.uploaded_date or '—' }}</td>
+          <td class="text-center">
+            <button class="toggle-active-btn {% if c.is_inactive == '1' %}is-inactive{% else %}is-active{% endif %}"
+                    onclick="toggleActive({{ c.id }}, this)">
+              {% if c.is_inactive == '1' %}Идэвхгүй{% else %}Идэвхитэй{% endif %}
+            </button>
+          </td>
           <td class="text-center">
             <div class="action-btns">
               <a href="{{ url_for('edit', cid=c.id) }}?next={{ request.url | urlencode }}" class="action-btn action-btn-edit" title="Засах">
@@ -478,6 +485,14 @@ document.getElementById('listForm').addEventListener('submit', function() {
   border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit;
 }
 .col-filter-clear:hover { background: #e2e8f0; }
+.toggle-active-btn {
+  padding: 3px 10px; border: none; border-radius: 12px;
+  font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: opacity .15s;
+}
+.toggle-active-btn:hover { opacity: .8; }
+.toggle-active-btn.is-active   { background: #d1fae5; color: #065f46; }
+.toggle-active-btn.is-inactive { background: #fee2e2; color: #991b1b; }
 </style>
 <script>
 (function() {
@@ -722,6 +737,7 @@ document.getElementById('listForm').addEventListener('submit', function() {
     'Эхний хяналтын үр дүн','Тайлбар','Буцаасан огноо','Сүүлийн хяналт',
     'Зассан','Scanned','Засварлагдсан эсэх','Засварлагдсан огноо',
     'Оруулсан ажилтан','Оруулсан огноо',
+    'Идэвхжил',
     null
   ];
   var HIDE_KEY = 'idx_hidden_cols';
@@ -786,5 +802,19 @@ document.getElementById('listForm').addEventListener('submit', function() {
     if (!drop.contains(e.target) && e.target !== btn) drop.classList.remove('open');
   });
 })();
+
+function toggleActive(cid, btn) {
+  btn.disabled = true;
+  fetch('/toggle-active/' + cid, {method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        var active = d.is_active;
+        btn.textContent = active ? 'Идэвхитэй' : 'Идэвхгүй';
+        btn.className = 'toggle-active-btn ' + (active ? 'is-active' : 'is-inactive');
+      }
+    })
+    .finally(function() { btn.disabled = false; });
+}
 </script>
 {% endblock %}

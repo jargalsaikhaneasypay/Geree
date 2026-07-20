@@ -574,7 +574,7 @@ def edit(cid):
         phone                = request.form.get('phone', '').strip()
         merchant_type        = request.form.get('merchant_type', '').strip()
         issued_by            = request.form.get('issued_by', '').strip()
-        department           = request.form.get('department', '').strip()
+        department           = request.form.get('department', '').strip() 
         expected_date        = request.form.get('expected_date', '').strip()
         received_date        = request.form.get('received_date', '').strip()
         first_inspection     = request.form.get('first_inspection', '').strip()
@@ -648,6 +648,25 @@ def edit(cid):
 # -----------------------------------------------------------
 # Delete
 # -----------------------------------------------------------
+@app.route('/toggle-active/<int:cid>', methods=['POST'])
+@login_required
+def toggle_active(cid):
+    from flask import jsonify
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT is_inactive FROM contracts WHERE id=%s", (cid,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        return jsonify(ok=False, error='not found'), 404
+    currently_inactive = (row['is_inactive'] == '1') if isinstance(row, dict) else (row[0] == '1')
+    new_val = '' if currently_inactive else '1'
+    cur.execute("UPDATE contracts SET is_inactive=%s WHERE id=%s", (new_val, cid))
+    conn.commit()
+    cur.close()
+    return jsonify(ok=True, is_active=(new_val != '1'))
+
+
 @app.route('/delete/<int:cid>', methods=['POST'])
 @login_required
 def delete(cid):
@@ -1144,7 +1163,7 @@ def download_template():
 
     samples = [
         [1, 'Дэлгүүрийн нэр ХХК', 'SN123456', 'M001234', 'T009876', 'Гэрээ',    '2026-01-15', '99001122', 'Бизнес',    'Болд Б'],
-        [2, 'Жишээ ХХК',           'SN654321', 'M005678', 'T005432', 'Зарагдсан', '2026-02-20', '88112233', 'Хувиараа', 'Сарнай Д'],
+        [2, 'Жишээ ХХК',           'SN654321', 'M005678', 'T005432', 'Зарагдсан', '2026-02-20', '88112233', 'Хувиараа', 'Сарнай Д'], 
     ]
     for r_idx, row in enumerate(samples, start=2):
         ws.row_dimensions[r_idx].height = 18

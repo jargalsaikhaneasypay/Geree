@@ -187,6 +187,13 @@
       </button>
       <div class="col-vis-drop" id="colVisDrop"></div>
     </div>
+    <button id="colResetOrderBtn" onclick="window._colReorderReset && window._colReorderReset()" title="Баганы байрлалыг анхны төлөвт оруулах"
+            style="display:none;align-items:center;gap:5px;padding:4px 10px;font-size:12px;font-weight:600;color:#6b7280;background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+      </svg>
+      Байрлал сэргээх
+    </button>
   </div>
   <style id="colHideStyle"></style>
   <div class="table-scroll">
@@ -525,9 +532,17 @@ th[draggable="true"]:hover .col-drag-handle { opacity: 1; }
   // Tag every th with its original HTML position
   allThs.forEach(function(th, i) { th.dataset.colIdx = String(i); });
 
+  var resetBtn = document.getElementById('colResetOrderBtn');
+
+  function showResetBtn(show) {
+    if (resetBtn) resetBtn.style.display = show ? 'inline-flex' : 'none';
+  }
+
   // Restore saved order (page-load only — cells are still in original order from server)
   try {
     var saved = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null');
+    var isReordered = saved && Array.isArray(saved) && saved.length === totalCols
+                      && saved.some(function(v, i) { return v !== i; });
     if (saved && Array.isArray(saved) && saved.length === totalCols) {
       saved.forEach(function(origIdx) {
         var th = theadRow.querySelector('th[data-col-idx="'+origIdx+'"]');
@@ -540,7 +555,13 @@ th[draggable="true"]:hover .col-drag-handle { opacity: 1; }
         });
       });
     }
+    showResetBtn(!!isReordered);
   } catch(e) {}
+
+  window._colReorderReset = function() {
+    try { localStorage.removeItem(ORDER_KEY); } catch(e) {}
+    location.reload();
+  };
 
   function currentOrder() {
     return Array.from(theadRow.children).map(function(th) {
@@ -617,6 +638,7 @@ th[draggable="true"]:hover .col-drag-handle { opacity: 1; }
 
       dragFrom = -1;
       try { localStorage.setItem(ORDER_KEY, JSON.stringify(currentOrder())); } catch(e2) {}
+      showResetBtn(true);
       // Rebuild filter cache and regenerate visibility CSS for new positions
       if (typeof window._filterReset   === 'function') window._filterReset();
       if (typeof window._colVisRegen   === 'function') window._colVisRegen();

@@ -314,6 +314,18 @@ def logout():
 def health():
     return 'ok', 200
 
+@app.route('/ping')
+def ping():
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute('SELECT 1')
+        cur.close()
+        return 'OK', 200
+    except Exception:
+        return 'DB error', 500
+
+
 @app.route('/db-status')
 def db_status():
     import html as _html

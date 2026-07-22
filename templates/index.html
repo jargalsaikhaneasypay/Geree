@@ -508,6 +508,7 @@ document.getElementById('listForm').addEventListener('submit', function() {
   var rows  = Array.from(tbody.querySelectorAll('tr'));
   var activeFilters = {};
   var activeDropdown = null;
+  var activeOutsideHandler = null;
 
   function cellText(cell) {
     return (cell.innerText || cell.textContent || '').trim().replace(/\s+/g, ' ');
@@ -576,6 +577,10 @@ document.getElementById('listForm').addEventListener('submit', function() {
   }
 
   function closeDropdown() {
+    if (activeOutsideHandler) {
+      document.removeEventListener('click', activeOutsideHandler);
+      activeOutsideHandler = null;
+    }
     if (activeDropdown) { activeDropdown.remove(); activeDropdown = null; }
   }
 
@@ -674,12 +679,12 @@ document.getElementById('listForm').addEventListener('submit', function() {
     srch.focus();
 
     setTimeout(function() {
-      document.addEventListener('click', function outsideClick(e) {
+      activeOutsideHandler = function(e) {
         if (!box.contains(e.target) && e.target !== iconEl) {
           closeDropdown();
-          document.removeEventListener('click', outsideClick);
         }
-      });
+      };
+      document.addEventListener('click', activeOutsideHandler);
     }, 10);
   }
 

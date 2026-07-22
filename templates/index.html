@@ -857,7 +857,12 @@ th[draggable="true"]:hover .col-drag-handle { opacity: 1; }
     icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px;display:block"><polyline points="6 9 12 15 18 9"/></svg>';
     th.style.whiteSpace = 'nowrap';
     th.appendChild(icon);
-    icon.addEventListener('click', function(e) { e.stopPropagation(); openDropdown(i, icon); });
+    icon.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // Re-compute position at click time so drag-reordered columns filter correctly
+      var liveI = Array.from(th.parentElement.children).indexOf(th);
+      openDropdown(liveI, icon);
+    });
   });
 
   // "Clear all filters" bar above the table

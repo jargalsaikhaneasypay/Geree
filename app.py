@@ -46,6 +46,54 @@ INSPECTION_RESULTS = [
     '7.Татагдсан',
 ]
 
+FIELD_LABELS = {
+    'merchant_name':        'Мерчантын нэр',
+    'pos_serial':           'Посын сериал',
+    'merchant_number':      'Мерч. дугаар',
+    'terminal_number':      'Терминал',
+    'status':               'Төлөв',
+    'pos_issue_date':       'Пос огноо',
+    'phone':                'Утас',
+    'merchant_type':        'Хэлбэр',
+    'issued_by':            'Ажилтан',
+    'department':           'Хэлтэс',
+    'expected_date':        'Ирэх ёстой огноо',
+    'received_date':        'Хүлээн авсан огноо',
+    'first_inspection':     'Эхний хяналт',
+    'description':          'Тайлбар',
+    'return_date':          'Буцаасан огноо',
+    'return_date_2':        'Буцаасан огноо 2',
+    'return_date_3':        'Буцаасан огноо 3',
+    'return_date_4':        'Буцаасан огноо 4',
+    'return_date_5':        'Буцаасан огноо 5',
+    'last_inspection_date': 'Сүүлийн хяналт',
+    'is_inactive':          'Идэвхжил',
+    'inactive_reason':      'Шалтгаан',
+    'scanned':              'Scanned',
+    'is_repaired':          'Засварлагдсан эсэх',
+    'repaired_date':        'Засварлагдсан огноо',
+}
+
+ACTION_LABELS = {
+    'create':        'Үүсгэсэн',
+    'edit':          'Засварласан',
+    'toggle_active': 'Идэвхжил',
+    'delete':        'Устгасан',
+}
+
+
+def _log_history(cur, contract_id, user, action, merchant_name='', changes=None):
+    if not changes:
+        changes = [(None, None, None)]
+    for field_name, old_val, new_val in changes:
+        cur.execute('''
+            INSERT INTO contract_history
+                (contract_id, merchant_name, user_email, action, field_name, old_value, new_value)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (contract_id, merchant_name or '', user or '', action,
+              field_name, old_val, new_val))
+
+
 # -----------------------------------------------------------
 # Database helpers  – per-worker connection pool
 # -----------------------------------------------------------
@@ -205,6 +253,23 @@ def init_db():
             cur.execute("RELEASE SAVEPOINT mig")
         except Exception:
             cur.execute("ROLLBACK TO SAVEPOINT mig")
+    conn.commit()
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS contract_history (
+            id            SERIAL PRIMARY KEY,
+            contract_id   INTEGER,
+            merchant_name TEXT,
+            user_email    TEXT,
+            changed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            action        TEXT,
+            field_name    TEXT,
+            old_value     TEXT,
+            new_value     TEXT
+        )
+    ''')
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ch_contract ON contract_history(contract_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ch_time ON contract_history(changed_at DESC)")
     conn.commit()
     cur.close()
     conn.close()
@@ -540,6 +605,9 @@ def add():
               first_inspection, description,
               return_date, return_date_2, return_date_3, return_date_4, return_date_5,
               last_inspection_date, scanned, is_repaired, repaired_date))
+        cur.execute("SELECT lastval()")
+        new_cid = cur.fetchone()['lastval']
+        _log_history(cur, new_cid, session.get('user', ''), 'create', merchant_name)
         conn.commit()
         cur.close()
         conn.close()
@@ -641,6 +709,26 @@ def edit(cid):
               last_inspection_date, is_inactive, inactive_reason,
               scanned, session.get('user', ''),
               is_repaired, repaired_date, cid))
+
+        _h_fields = [
+            ('merchant_name', merchant_name), ('pos_serial', pos_serial),
+            ('merchant_number', merchant_number), ('terminal_number', terminal_number),
+            ('status', status), ('pos_issue_date', pos_issue_date),
+            ('phone', phone), ('merchant_type', merchant_type),
+            ('issued_by', issued_by), ('department', department),
+            ('expected_date', expected_date), ('received_date', received_date),
+            ('first_inspection', first_inspection), ('description', description),
+            ('return_date', return_date), ('return_date_2', return_date_2),
+            ('return_date_3', return_date_3), ('return_date_4', return_date_4),
+            ('return_date_5', return_date_5), ('last_inspection_date', last_inspection_date),
+            ('is_inactive', is_inactive), ('inactive_reason', inactive_reason),
+            ('scanned', scanned), ('is_repaired', is_repaired), ('repaired_date', repaired_date),
+        ]
+        _h_changes = [(f, str(contract.get(f) or ''), str(v or ''))
+                      for f, v in _h_fields if str(contract.get(f) or '') != str(v or '')]
+        if _h_changes:
+            _log_history(cur, cid, session.get('user', ''), 'edit',
+                         contract.get('merchant_name', ''), _h_changes)
         conn.commit()
         cur.close()
         conn.close()
@@ -666,14 +754,18 @@ def toggle_active(cid):
     from flask import jsonify
     conn = get_db()
     cur  = conn.cursor()
-    cur.execute("SELECT is_inactive FROM contracts WHERE id=%s", (cid,))
+    cur.execute("SELECT is_inactive, merchant_name FROM contracts WHERE id=%s", (cid,))
     row = cur.fetchone()
     if not row:
         cur.close()
         return jsonify(ok=False, error='not found'), 404
-    currently_inactive = (row['is_inactive'] == '1') if isinstance(row, dict) else (row[0] == '1')
+    currently_inactive = (row[0] == '1')
+    mname = (row[1] or '') if len(row) > 1 else ''
     new_val = '' if currently_inactive else '1'
     cur.execute("UPDATE contracts SET is_inactive=%s WHERE id=%s", (new_val, cid))
+    _log_history(cur, cid, session.get('user', ''), 'toggle_active', mname, [
+        ('is_inactive', '1' if currently_inactive else '', new_val),
+    ])
     conn.commit()
     cur.close()
     return jsonify(ok=True, is_active=(new_val != '1'))
@@ -684,12 +776,62 @@ def toggle_active(cid):
 def delete(cid):
     conn = get_db()
     cur  = conn.cursor()
+    cur.execute('SELECT merchant_name FROM contracts WHERE id=%s', (cid,))
+    mname_row = cur.fetchone()
+    mname = (mname_row[0] if mname_row else '') or ''
     cur.execute('DELETE FROM contracts WHERE id=%s', (cid,))
+    _log_history(cur, cid, session.get('user', ''), 'delete', mname)
     conn.commit()
     cur.close()
     conn.close()
     flash('Бүртгэл устгагдлаа!', 'info')
     return redirect(url_for('index'))
+
+
+# -----------------------------------------------------------
+# Change history
+# -----------------------------------------------------------
+
+@app.route('/history')
+@login_required
+def history_view():
+    conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    limit = min(int(request.args.get('limit', 300)), 2000)
+    cur.execute('''
+        SELECT id, contract_id, merchant_name, user_email, changed_at,
+               action, field_name, old_value, new_value
+        FROM contract_history
+        ORDER BY changed_at DESC, id DESC
+        LIMIT %s
+    ''', (limit,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template('history.html', rows=rows,
+                           field_labels=FIELD_LABELS, action_labels=ACTION_LABELS,
+                           limit=limit, contract_id=None, merchant_name=None)
+
+
+@app.route('/history/<int:cid>')
+@login_required
+def contract_history(cid):
+    conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('''
+        SELECT id, contract_id, merchant_name, user_email, changed_at,
+               action, field_name, old_value, new_value
+        FROM contract_history
+        WHERE contract_id = %s
+        ORDER BY changed_at DESC, id DESC
+    ''', (cid,))
+    rows = cur.fetchall()
+    mname = rows[0]['merchant_name'] if rows else f'#{cid}'
+    cur.close()
+    conn.close()
+    return render_template('history.html', rows=rows,
+                           field_labels=FIELD_LABELS, action_labels=ACTION_LABELS,
+                           limit=None, contract_id=cid, merchant_name=mname)
 
 
 # -----------------------------------------------------------

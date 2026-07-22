@@ -26,7 +26,7 @@
       Дашбоард
     </a>
 
-    {% set admin_active = request.endpoint in ['index','add','import_page','admin','root','managers_list','managers_add','managers_edit','managers_delete'] %}
+    {% set admin_active = request.endpoint in ['index','add','import_page','admin','root','managers_list','managers_add','managers_edit','managers_delete','history_view','contract_history'] %}
     {% if session.user %}
     <div class="nav-group {% if admin_active %}open{% endif %}">
       <div class="nav-group-header" onclick="this.parentElement.classList.toggle('open')">
@@ -75,6 +75,13 @@
             <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
           Админ хэсэг
+        </a>
+        <a href="{{ url_for('history_view') }}" class="nav-item nav-item-sub {% if request.endpoint in ['history_view','contract_history'] %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          Өөрчлөлтийн түүх
         </a>
       </div>
     </div>

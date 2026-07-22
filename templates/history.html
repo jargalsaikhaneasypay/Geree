@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+
+{% block title %}Түүх — Гэрээ бүртгэл{% endblock %}
+
+{% block page_title %}
+  <h1 class="page-title">
+    {% if contract_id %}
+      Гэрээний түүх — {{ merchant_name }}
+    {% else %}
+      Өөрчлөлтийн түүх
+    {% endif %}
+  </h1>
+{% endblock %}
+
+{% block content %}
+<style>
+.hist-wrap { overflow-x: auto; }
+.hist-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hist-table th {
+  background: var(--surface-2, #f1f5f9);
+  color: var(--text-2, #64748b);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 10px 12px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  text-align: left;
+}
+.hist-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  vertical-align: middle;
+  color: var(--text-1, #1e293b);
+}
+.hist-table tr:hover td { background: var(--surface-1, #f8fafc); }
+.hist-group-top td { border-top: 2px solid var(--border, #e2e8f0); }
+
+.action-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.action-create        { background: #d1fae5; color: #065f46; }
+.action-edit          { background: #dbeafe; color: #1d4ed8; }
+.action-toggle_active { background: #fef3c7; color: #92400e; }
+.action-delete        { background: #fee2e2; color: #991b1b; }
+
+.val-old { color: #ef4444; text-decoration: line-through; opacity: .8; }
+.val-new  { color: #16a34a; font-weight: 500; }
+.val-empty { color: #94a3b8; font-style: italic; }
+
+.hist-contract-link {
+  color: var(--primary, #3b5fc0);
+  text-decoration: none;
+  font-weight: 500;
+}
+.hist-contract-link:hover { text-decoration: underline; }
+
+.hist-user { font-family: monospace; font-size: 12px; color: var(--text-2, #64748b); }
+.hist-time { white-space: nowrap; color: var(--text-2, #64748b); font-size: 12px; }
+
+.hist-back { margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px;
+             color: var(--primary, #3b5fc0); text-decoration: none; font-size: 13px; font-weight: 500; }
+.hist-back:hover { text-decoration: underline; }
+
+.hist-empty { text-align: center; padding: 60px 20px; color: var(--text-2, #64748b); font-size: 14px; }
+</style>
+
+{% if contract_id %}
+<a href="{{ url_for('index') }}" class="hist-back">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+  Жагсаалт руу буцах
+</a>
+{% endif %}
+
+<div class="card">
+  <div class="hist-wrap">
+    {% if rows %}
+    <table class="hist-table">
+      <thead>
+        <tr>
+          <th>Огноо / Цаг</th>
+          <th>Хэрэглэгч</th>
+          {% if not contract_id %}<th>Гэрээ</th>{% endif %}
+          <th>Үйлдэл</th>
+          <th>Талбар</th>
+          <th>Хуучин утга</th>
+          <th>Шинэ утга</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(prev_key='') %}
+        {% for r in rows %}
+          {% set cur_key = (r.changed_at | string)[:19] ~ '|' ~ r.user_email ~ '|' ~ r.contract_id %}
+          {% set is_new_group = (cur_key != ns.prev_key) %}
+          {% set ns.prev_key = cur_key %}
+          <tr{% if is_new_group %} class="hist-group-top"{% endif %}>
+            <td class="hist-time">
+              {% if is_new_group %}
+                {{ r.changed_at.strftime('%Y-%m-%d %H:%M') if r.changed_at else '—' }}
+              {% endif %}
+            </td>
+            <td class="hist-user">
+              {% if is_new_group %}
+                {{ (r.user_email or '—').split('@')[0] }}
+              {% endif %}
+            </td>
+            {% if not contract_id %}
+            <td>
+              {% if is_new_group %}
+                <a href="{{ url_for('contract_history', cid=r.contract_id) }}" class="hist-contract-link">
+                  {{ r.merchant_name or ('#' ~ r.contract_id) }}
+                </a>
+              {% endif %}
+            </td>
+            {% endif %}
+            <td>
+              {% if is_new_group %}
+                <span class="action-badge action-{{ r.action }}">
+                  {{ action_labels.get(r.action, r.action) }}
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.field_name %}
+                {{ field_labels.get(r.field_name, r.field_name) }}
+              {% endif %}
+            </td>
+            <td>
+              {% if r.old_value is not none %}
+                {% if r.field_name == 'is_inactive' %}
+                  {% set disp = 'Идэвхгүй' if r.old_value == '1' else 'Идэвхитэй' %}
+                {% elif r.field_name == 'scanned' %}
+                  {% set disp = 'Тийм' if r.old_value == '1' else 'Үгүй' %}
+                {% else %}
+                  {% set disp = r.old_value %}
+                {% endif %}
+                {% if disp %}
+                  <span class="val-old">{{ disp }}</span>
+                {% else %}
+                  <span class="val-empty">хоосон</span>
+                {% endif %}
+              {% endif %}
+            </td>
+            <td>
+              {% if r.new_value is not none %}
+                {% if r.field_name == 'is_inactive' %}
+                  {% set disp = 'Идэвхгүй' if r.new_value == '1' else 'Идэвхитэй' %}
+                {% elif r.field_name == 'scanned' %}
+                  {% set disp = 'Тийм' if r.new_value == '1' else 'Үгүй' %}
+                {% else %}
+                  {% set disp = r.new_value %}
+                {% endif %}
+                {% if disp %}
+                  <span class="val-new">{{ disp }}</span>
+                {% else %}
+                  <span class="val-empty">хоосон</span>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="hist-empty">Одоогоор өөрчлөлтийн түүх байхгүй байна.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

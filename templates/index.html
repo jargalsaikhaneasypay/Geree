@@ -288,6 +288,11 @@
           </td>
           <td class="text-center">
             <div class="action-btns">
+              <a href="{{ url_for('contract_history', cid=c.id) }}" class="action-btn" title="Түүх" style="color:#6366f1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </a>
               <a href="{{ url_for('edit', cid=c.id) }}?next={{ request.url | urlencode }}" class="action-btn action-btn-edit" title="Засах">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>

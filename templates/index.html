@@ -490,6 +490,17 @@ document.getElementById('listForm').addEventListener('submit', function() {
   border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit;
 }
 .col-filter-clear:hover { background: #e2e8f0; }
+th[draggable="true"]  { cursor: grab; }
+th[draggable="true"]:active { cursor: grabbing; }
+.col-drag-source      { opacity: .45; }
+.col-drag-over-left   { box-shadow: inset  3px 0 0 #3b5fc0; }
+.col-drag-over-right  { box-shadow: inset -3px 0 0 #3b5fc0; }
+.col-drag-handle {
+  display: inline-flex; align-items: center; margin-left: 4px;
+  opacity: 0; color: #94a3b8; vertical-align: middle; pointer-events: none;
+  transition: opacity .15s;
+}
+th[draggable="true"]:hover .col-drag-handle { opacity: 1; }
 .toggle-active-btn {
   padding: 3px 10px; border: none; border-radius: 12px;
   font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
@@ -500,6 +511,120 @@ document.getElementById('listForm').addEventListener('submit', function() {
 .toggle-active-btn.is-inactive { background: #fee2e2; color: #991b1b; }
 </style>
 <script>
+// ---- Column reorder (runs first so filter/visibility see the restored order) ----
+(function() {
+  var ORDER_KEY = 'idx_col_order';
+  var table = document.querySelector('.data-table');
+  if (!table) return;
+  var theadRow = table.querySelector('thead tr');
+  if (!theadRow) return;
+  var allThs   = Array.from(theadRow.children);
+  var totalCols = allThs.length;
+  var FIXED    = new Set([0, totalCols - 1]); // Д/д and Үйлдэл stay put
+
+  // Tag every th with its original HTML position
+  allThs.forEach(function(th, i) { th.dataset.colIdx = String(i); });
+
+  // Restore saved order (page-load only — cells are still in original order from server)
+  try {
+    var saved = JSON.parse(localStorage.getItem(ORDER_KEY) || 'null');
+    if (saved && Array.isArray(saved) && saved.length === totalCols) {
+      saved.forEach(function(origIdx) {
+        var th = theadRow.querySelector('th[data-col-idx="'+origIdx+'"]');
+        if (th) theadRow.appendChild(th);
+      });
+      Array.from(table.querySelectorAll('tbody tr')).forEach(function(row) {
+        var cells = Array.from(row.cells);
+        saved.forEach(function(origIdx) {
+          if (cells[origIdx]) row.appendChild(cells[origIdx]);
+        });
+      });
+    }
+  } catch(e) {}
+
+  function currentOrder() {
+    return Array.from(theadRow.children).map(function(th) {
+      return parseInt(th.dataset.colIdx, 10);
+    });
+  }
+
+  var dragFrom = -1;
+
+  Array.from(theadRow.children).forEach(function(th) {
+    if (FIXED.has(parseInt(th.dataset.colIdx, 10))) return;
+    th.draggable = true;
+
+    var handle = document.createElement('span');
+    handle.className = 'col-drag-handle';
+    handle.innerHTML = '<svg viewBox="0 0 8 14" fill="currentColor" style="width:7px;height:12px"><circle cx="2" cy="2" r="1.4"/><circle cx="6" cy="2" r="1.4"/><circle cx="2" cy="7" r="1.4"/><circle cx="6" cy="7" r="1.4"/><circle cx="2" cy="12" r="1.4"/><circle cx="6" cy="12" r="1.4"/></svg>';
+    th.appendChild(handle);
+
+    th.addEventListener('dragstart', function(e) {
+      dragFrom = parseInt(th.dataset.colIdx, 10);
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(function() { th.classList.add('col-drag-source'); }, 0);
+    });
+
+    th.addEventListener('dragend', function() {
+      dragFrom = -1;
+      th.classList.remove('col-drag-source');
+      Array.from(theadRow.children).forEach(function(t) {
+        t.classList.remove('col-drag-over-left', 'col-drag-over-right');
+      });
+    });
+
+    th.addEventListener('dragover', function(e) {
+      if (dragFrom < 0) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      Array.from(theadRow.children).forEach(function(t) {
+        t.classList.remove('col-drag-over-left', 'col-drag-over-right');
+      });
+      var rect = th.getBoundingClientRect();
+      th.classList.add(e.clientX < rect.left + rect.width / 2 ? 'col-drag-over-left' : 'col-drag-over-right');
+    });
+
+    th.addEventListener('dragleave', function(e) {
+      if (!th.contains(e.relatedTarget)) {
+        th.classList.remove('col-drag-over-left', 'col-drag-over-right');
+      }
+    });
+
+    th.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (dragFrom < 0) return;
+      var toOrigIdx = parseInt(th.dataset.colIdx, 10);
+      th.classList.remove('col-drag-over-left', 'col-drag-over-right');
+      if (dragFrom === toOrigIdx || FIXED.has(toOrigIdx)) { dragFrom = -1; return; }
+
+      var thFrom   = theadRow.querySelector('th[data-col-idx="'+dragFrom+'"]');
+      var thTo     = th;
+      var thsNow   = Array.from(theadRow.children);
+      var fromPos  = thsNow.indexOf(thFrom);
+      var toPos    = thsNow.indexOf(thTo);
+      var before   = e.clientX < thTo.getBoundingClientRect().left + thTo.getBoundingClientRect().width / 2;
+
+      // Move header
+      theadRow.insertBefore(thFrom, before ? thTo : thTo.nextSibling);
+
+      // Move tbody cells (use captured DOM positions, not data-col-idx)
+      Array.from(table.querySelectorAll('tbody tr')).forEach(function(row) {
+        var cells = Array.from(row.cells);
+        var cf = cells[fromPos], ct = cells[toPos];
+        if (!cf || !ct) return;
+        row.insertBefore(cf, before ? ct : ct.nextSibling);
+      });
+
+      dragFrom = -1;
+      try { localStorage.setItem(ORDER_KEY, JSON.stringify(currentOrder())); } catch(e2) {}
+      // Rebuild filter cache and regenerate visibility CSS for new positions
+      if (typeof window._filterReset   === 'function') window._filterReset();
+      if (typeof window._colVisRegen   === 'function') window._colVisRegen();
+    });
+  });
+})();
+
+// ---- Column filter ----
 (function() {
   var table = document.querySelector('.data-table');
   if (!table) return;
@@ -733,6 +858,17 @@ document.getElementById('listForm').addEventListener('submit', function() {
     applyFilters(); updateIcons();
   };
 
+  // Called by column reorder after drag-drop to rebuild cache + clear filters
+  window._filterReset = function() {
+    Object.keys(activeFilters).forEach(function(k) { delete activeFilters[k]; });
+    rows      = Array.from(tbody.querySelectorAll('tr'));
+    cellCache = rows.map(function(row) {
+      return Array.from(row.cells).map(function(cell) { return cell ? cellText(cell) : '—'; });
+    });
+    try { sessionStorage.removeItem('idx_col_filters'); } catch(e) {}
+    applyFilters(); updateIcons();
+  };
+
   // Apply any restored filters on page load
   if (Object.keys(activeFilters).length > 0) { applyFilters(); updateIcons(); }
 })();
@@ -791,17 +927,24 @@ document.getElementById('listForm').addEventListener('submit', function() {
   drop.appendChild(frag);
 
   function saveApply() {
-    var hidden = Object.keys(hiddenSet).map(Number);
+    var tbl      = document.querySelector('.data-table');
+    var tRow     = tbl ? tbl.querySelector('thead tr') : null;
+    var hidden   = Object.keys(hiddenSet).map(Number);
     try { localStorage.setItem(HIDE_KEY, JSON.stringify(hidden)); } catch(e){}
     var rules = hidden.map(function(ci) {
-      var n = ci + 1;
-      return '.data-table thead tr th:nth-child('+n+'),.data-table tbody tr td:nth-child('+n+'){display:none!important}';
+      var pos = ci + 1; // fallback to original position
+      if (tRow) {
+        var tth = tRow.querySelector('th[data-col-idx="'+ci+'"]');
+        if (tth) pos = Array.from(tRow.children).indexOf(tth) + 1;
+      }
+      return '.data-table thead tr th:nth-child('+pos+'),.data-table tbody tr td:nth-child('+pos+'){display:none!important}';
     }).join('');
     style.textContent = rules;
     var cnt = hidden.length;
     badge.textContent = cnt ? ' ('+cnt+')' : '';
     if (cnt > 0) btn.classList.add('col-vis-btn-active'); else btn.classList.remove('col-vis-btn-active');
   }
+  window._colVisRegen = saveApply; // called by column reorder after drag-drop
 
   // Apply on load
   saveApply();

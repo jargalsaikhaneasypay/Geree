@@ -293,7 +293,7 @@
               {% if c.is_inactive == '1' %}Идэвхгүй{% else %}Идэвхитэй{% endif %}
             </button>
           </td>
-          <td class="text-center">
+          <td class="text-center col-actions">
             <div class="action-btns">
               <a href="{{ url_for('contract_history', cid=c.id) }}" class="action-btn" title="Түүх" style="color:#6366f1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

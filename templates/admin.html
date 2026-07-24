@@ -218,11 +218,23 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 
 <!-- Full table -->
 <div class="card table-card" id="adminTableCard">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
     <h3 class="card-title">Бүх бүртгэл</h3>
-    <span style="font-size:12px;color:var(--text-muted)">Нийт <strong class="admin-tbl-count">{{ contracts|length }}</strong> бүртгэл</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <span style="font-size:12px;color:var(--text-muted)">Нийт <strong class="admin-tbl-count">{{ contracts|length }}</strong> бүртгэл</span>
+      <div class="col-vis-wrap">
+        <button class="col-vis-btn" id="adminColVisBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+            <rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/>
+          </svg>
+          Баганууд<span id="adminColVisBadge"></span>
+        </button>
+        <div class="col-vis-drop" id="adminColVisDrop"></div>
+      </div>
+    </div>
   </div>
   {% if contracts %}
+  <style id="adminColHideStyle"></style>
   <div class="table-scroll">
     <table class="data-table data-table-sm" id="adminTable">
       <thead>
@@ -343,6 +355,16 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 .col-filter-ok:hover{background:#2d5490}
 .col-filter-clear{padding:6px 10px;background:#f1f5f9;color:#64748b;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-family:inherit}
 .col-filter-clear:hover{background:#e2e8f0}
+.col-vis-wrap{position:relative}
+.col-vis-btn{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit}
+.col-vis-btn:hover{background:#e8eef5;color:var(--primary);border-color:#b0bfd0}
+.col-vis-btn-active{color:var(--primary)!important;border-color:var(--primary)!important;background:#EEF4FF!important}
+.col-vis-drop{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);min-width:200px;max-height:340px;overflow-y:auto;z-index:3000;display:none;padding:6px 0}
+.col-vis-drop.open{display:block}
+.col-vis-item{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:13px;user-select:none}
+.col-vis-item:hover{background:var(--bg)}
+.col-vis-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;flex-shrink:0}
+.col-vis-sep{height:1px;background:var(--border);margin:4px 0}
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -355,6 +377,7 @@ document.getElementById('adminForm').addEventListener('submit',function(){
   var rows = Array.from(tbody.querySelectorAll('tr'));
   var activeFilters = {};
   var activeDropdown = null;
+  var activeOutsideHandler = null;
 
   function cellText(c){ return (c.innerText||c.textContent||'').trim().replace(/\s+/g,' '); }
 
@@ -392,7 +415,10 @@ document.getElementById('adminForm').addEventListener('submit',function(){
     updateExportBtn();
   }
 
-  function closeDropdown(){ if(activeDropdown){activeDropdown.remove();activeDropdown=null;} }
+  function closeDropdown(){
+    if(activeOutsideHandler){document.removeEventListener('click',activeOutsideHandler);activeOutsideHandler=null;}
+    if(activeDropdown){activeDropdown.remove();activeDropdown=null;}
+  }
 
   function openDropdown(ci, iconEl){
     closeDropdown();
@@ -425,7 +451,10 @@ document.getElementById('adminForm').addEventListener('submit',function(){
     var rect=iconEl.getBoundingClientRect();
     box.style.top=(rect.bottom+4)+'px'; box.style.left=Math.min(rect.left,window.innerWidth-320)+'px';
     document.body.appendChild(box); activeDropdown=box; srch.focus();
-    setTimeout(function(){ document.addEventListener('click',function h(e){ if(!box.contains(e.target)&&e.target!==iconEl){closeDropdown();document.removeEventListener('click',h);} }); },10);
+    setTimeout(function(){
+      activeOutsideHandler=function(e){if(!box.contains(e.target)&&e.target!==iconEl){closeDropdown();}};
+      document.addEventListener('click',activeOutsideHandler);
+    },10);
   }
 
   function updateIcons(){
@@ -473,6 +502,70 @@ document.getElementById('adminForm').addEventListener('submit',function(){
     var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Бүртгэл');
     XLSX.writeFile(wb,'geree_filtered_'+new Date().toISOString().slice(0,10)+'.xlsx');
   };
+})();
+
+// ---- Admin column visibility ----
+(function(){
+  var COL_NAMES = [
+    null,
+    'Мерчантын нэр','Посын сериал','Мерчантын дугаар','Терминалын дугаар',
+    'Төлөв','Пос огноо','Утас','Мерчантын хэлбэр','Гаргасан ажилтан','Хэлтэс',
+    'Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал',
+    'Хяналтын үр дүн','Буцаасан огноо 1','Буцаасан огноо 2','Буцаасан огноо 3',
+    'Буцаасан огноо 4','Буцаасан огноо 5','Сүүлийн хяналт',
+    'Скан','Идэвхгүй','Шалтгаан','Тайлбар'
+  ];
+  var HIDE_KEY = 'admin_hidden_cols';
+  var btn   = document.getElementById('adminColVisBtn');
+  var drop  = document.getElementById('adminColVisDrop');
+  var badge = document.getElementById('adminColVisBadge');
+  var style = document.getElementById('adminColHideStyle');
+  if(!btn||!drop||!style) return;
+
+  var hiddenSet = {};
+  try{ var _s=localStorage.getItem(HIDE_KEY); if(_s) JSON.parse(_s).forEach(function(i){hiddenSet[i]=true;}); }catch(e){}
+
+  var frag=document.createDocumentFragment();
+  var showAll=document.createElement('div'); showAll.className='col-vis-item';
+  showAll.style.cssText='font-weight:600;color:var(--primary)';
+  showAll.textContent='✓ Бүгдийг харуулах';
+  showAll.addEventListener('click',function(){
+    hiddenSet={};
+    drop.querySelectorAll('input[type=checkbox]').forEach(function(cb){cb.checked=true;});
+    saveApply();
+  });
+  frag.appendChild(showAll);
+  var sep=document.createElement('div'); sep.className='col-vis-sep'; frag.appendChild(sep);
+
+  COL_NAMES.forEach(function(name,i){
+    if(name===null) return;
+    var lbl=document.createElement('label'); lbl.className='col-vis-item';
+    var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=!hiddenSet[i];
+    cb.addEventListener('change',function(){
+      if(this.checked) delete hiddenSet[i]; else hiddenSet[i]=true;
+      saveApply();
+    });
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' '+name));
+    frag.appendChild(lbl);
+  });
+  drop.appendChild(frag);
+
+  function saveApply(){
+    var hidden=Object.keys(hiddenSet).map(Number);
+    try{ localStorage.setItem(HIDE_KEY,JSON.stringify(hidden)); }catch(e){}
+    var rules=hidden.map(function(ci){
+      var n=ci+1;
+      return '#adminTable thead tr th:nth-child('+n+'),#adminTable tbody tr td:nth-child('+n+'){display:none!important}';
+    }).join('');
+    style.textContent=rules;
+    var cnt=hidden.length;
+    badge.textContent=cnt?' ('+cnt+')':'';
+    if(cnt>0) btn.classList.add('col-vis-btn-active'); else btn.classList.remove('col-vis-btn-active');
+  }
+  saveApply();
+
+  btn.addEventListener('click',function(e){e.stopPropagation();drop.classList.toggle('open');});
+  document.addEventListener('click',function(e){if(!drop.contains(e.target)&&e.target!==btn)drop.classList.remove('open');});
 })();
 </script>
 

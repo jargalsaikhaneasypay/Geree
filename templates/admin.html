@@ -242,42 +242,46 @@ document.getElementById('adminForm').addEventListener('submit',function(){
           <th style="min-width:46px">Д/д</th>
           <th style="min-width:180px">Мерчантын нэр</th>
           <th style="min-width:130px">Посын сериал</th>
-          <th style="min-width:120px">Мерчантын дугаар</th>
-          <th style="min-width:120px">Терминалын дугаар</th>
+          <th style="min-width:110px">Мерч. дугаар</th>
+          <th style="min-width:110px">Терминал</th>
           <th style="min-width:90px">Төлөв</th>
           <th style="min-width:110px">Пос огноо</th>
           <th style="min-width:100px">Утас</th>
-          <th style="min-width:130px">Мерчантын хэлбэр</th>
-          <th style="min-width:140px">Гаргасан ажилтан</th>
+          <th style="min-width:110px">Хэлбэр</th>
+          <th style="min-width:110px">Ажилтан</th>
           <th style="min-width:110px">Хэлтэс</th>
           <th style="min-width:120px">Ирэх ёстой огноо</th>
           <th style="min-width:120px">Хүлээн авсан огноо</th>
           <th style="min-width:90px">Хэтэрсэн хоног</th>
           <th style="min-width:120px">Ангилал</th>
-          <th style="min-width:130px">Хяналтын үр дүн</th>
-          <th style="min-width:110px">Буцаасан огноо 1</th>
-          <th style="min-width:110px">Буцаасан огноо 2</th>
-          <th style="min-width:110px">Буцаасан огноо 3</th>
-          <th style="min-width:110px">Буцаасан огноо 4</th>
-          <th style="min-width:110px">Буцаасан огноо 5</th>
-          <th style="min-width:120px">Сүүлийн хяналт</th>
-          <th style="min-width:70px">Скан</th>
-          <th style="min-width:80px">Идэвхгүй</th>
-          <th style="min-width:150px">Шалтгаан</th>
+          <th style="min-width:160px">Эхний хяналтын үр дүн</th>
           <th style="min-width:180px">Тайлбар</th>
+          <th style="min-width:120px">Буцаасан огноо</th>
+          <th style="min-width:120px">Сүүлийн хяналт</th>
+          <th style="min-width:90px">Зассан</th>
+          <th style="min-width:80px">Scanned</th>
+          <th style="min-width:130px">Засварлагдсан эсэх</th>
+          <th style="min-width:130px">Засварлагдсан огноо</th>
+          <th style="min-width:120px">Оруулсан ажилтан</th>
+          <th style="min-width:120px">Оруулсан огноо</th>
+          <th style="min-width:100px">Идэвхжил</th>
         </tr>
       </thead>
       <tbody>
         {% for c in contracts %}
-        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% else %}row-ontime{% endif %}">
+        <tr class="{% if c.time_category == 'Хугацаа хэтэрсэн' %}row-overdue{% elif c.time_category == 'Хоосон' %}row-empty{% else %}row-ontime{% endif %}">
           <td class="text-center fw-600">{{ c.dd }}</td>
           <td class="fw-500">{{ c.merchant_name or '—' }}</td>
           <td class="mono">{{ c.pos_serial or '—' }}</td>
           <td class="mono">{{ c.merchant_number or '—' }}</td>
           <td class="mono">{{ c.terminal_number or '—' }}</td>
-          <td>{{ c.status or '—' }}</td>
+          <td class="text-center">
+            {% if c.status %}
+              <span class="badge badge-status-{{ c.status | replace('/', '-') | replace(' ', '-') }}">{{ c.status }}</span>
+            {% else %}—{% endif %}
+          </td>
           <td class="text-center">{{ c.pos_issue_date or '—' }}</td>
-          <td>{{ c.phone or '—' }}</td>
+          <td class="mono">{{ c.phone or '—' }}</td>
           <td>{{ c.merchant_type or '—' }}</td>
           <td>{{ c.issued_by or '—' }}</td>
           <td>
@@ -289,23 +293,36 @@ document.getElementById('adminForm').addEventListener('submit',function(){
             {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
           </td>
           <td>
-            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% elif c.time_category == 'Хугацаа хэтэрсэн' %}badge-danger{% else %}badge-dept{% endif %}">
+            <span class="badge {% if c.time_category == 'Хугацаандаа' %}badge-success{% elif c.time_category == 'Хоосон' %}badge-empty{% else %}badge-danger{% endif %}">
               {{ c.time_category or 'Хоосон' }}
             </span>
           </td>
           <td>
             {% if c.first_inspection %}<span class="badge badge-inspection">{{ c.first_inspection }}</span>{% else %}—{% endif %}
           </td>
-          <td class="text-center">{{ c.return_date or '—' }}</td>
-          <td class="text-center">{{ c.return_date_2 or '—' }}</td>
-          <td class="text-center">{{ c.return_date_3 or '—' }}</td>
-          <td class="text-center">{{ c.return_date_4 or '—' }}</td>
-          <td class="text-center">{{ c.return_date_5 or '—' }}</td>
+          <td class="td-wrap">{{ c.description or '—' }}</td>
+          <td class="text-center">
+            {% set rdates = [c.return_date, c.return_date_2, c.return_date_3, c.return_date_4, c.return_date_5] | select | list %}
+            {% if rdates %}
+              <span class="badge badge-danger" title="{{ rdates | join(', ') }}">{{ rdates | length }}x буцаасан</span>
+            {% else %}—{% endif %}
+          </td>
           <td class="text-center">{{ c.last_inspection_date or '—' }}</td>
+          <td class="text-center">{{ (c.modified_by or '').split('@')[0] or '—' }}</td>
           <td class="text-center">{% if c.scanned == '1' %}✓{% else %}—{% endif %}</td>
-          <td class="text-center">{% if c.is_inactive == '1' %}<span class="badge badge-danger">Тийм</span>{% else %}—{% endif %}</td>
-          <td>{{ c.inactive_reason or '—' }}</td>
-          <td>{{ c.description or '—' }}</td>
+          <td class="text-center">
+            {% if c.is_repaired == 'Тийм' %}<span class="badge badge-success">Тийм</span>{% else %}—{% endif %}
+          </td>
+          <td class="text-center">{{ c.repaired_date or '—' }}</td>
+          <td class="text-center">{{ (c.uploaded_by or '').split('@')[0] or '—' }}</td>
+          <td class="text-center">{{ c.uploaded_date or '—' }}</td>
+          <td class="text-center">
+            {% if c.is_inactive == '1' %}
+              <span class="badge badge-danger" style="min-width:70px">Идэвхгүй</span>
+            {% else %}
+              <span class="badge badge-success" style="min-width:70px">Идэвхитэй</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -487,7 +504,7 @@ document.getElementById('adminForm').addEventListener('submit',function(){
   window.adminClearAll=function(){ Object.keys(activeFilters).forEach(function(k){delete activeFilters[k];}); applyFilters(); updateIcons(); };
 
   // Excel export: filtered rows if filters active, else full server export
-  var headers=['Д/д','Мерчантын нэр','Посын сериал','Мерчантын дугаар','Терминалын дугаар','Төлөв','Пос огноо','Утас','Мерчантын хэлбэр','Гаргасан ажилтан','Хэлтэс','Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал','Хяналтын үр дүн','Буцаасан огноо 1','Буцаасан огноо 2','Буцаасан огноо 3','Буцаасан огноо 4','Буцаасан огноо 5','Сүүлийн хяналт','Скан','Идэвхгүй','Шалтгаан','Тайлбар'];
+  var headers=['Д/д','Мерчантын нэр','Посын сериал','Мерч. дугаар','Терминал','Төлөв','Пос огноо','Утас','Хэлбэр','Ажилтан','Хэлтэс','Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал','Эхний хяналтын үр дүн','Тайлбар','Буцаасан огноо','Сүүлийн хяналт','Зассан','Scanned','Засварлагдсан эсэх','Засварлагдсан огноо','Оруулсан ажилтан','Оруулсан огноо','Идэвхжил'];
   window.adminExcelDownload=function(){
     var hasFilter=Object.keys(activeFilters).length>0;
     if(!hasFilter){ window.location.href='{{ url_for("export") }}'; return; }
@@ -508,12 +525,12 @@ document.getElementById('adminForm').addEventListener('submit',function(){
 (function(){
   var COL_NAMES = [
     null,
-    'Мерчантын нэр','Посын сериал','Мерчантын дугаар','Терминалын дугаар',
-    'Төлөв','Пос огноо','Утас','Мерчантын хэлбэр','Гаргасан ажилтан','Хэлтэс',
+    'Мерчантын нэр','Посын сериал','Мерч. дугаар','Терминал',
+    'Төлөв','Пос огноо','Утас','Хэлбэр','Ажилтан','Хэлтэс',
     'Ирэх ёстой огноо','Хүлээн авсан огноо','Хэтэрсэн хоног','Ангилал',
-    'Хяналтын үр дүн','Буцаасан огноо 1','Буцаасан огноо 2','Буцаасан огноо 3',
-    'Буцаасан огноо 4','Буцаасан огноо 5','Сүүлийн хяналт',
-    'Скан','Идэвхгүй','Шалтгаан','Тайлбар'
+    'Эхний хяналтын үр дүн','Тайлбар','Буцаасан огноо','Сүүлийн хяналт',
+    'Зассан','Scanned','Засварлагдсан эсэх','Засварлагдсан огноо',
+    'Оруулсан ажилтан','Оруулсан огноо','Идэвхжил'
   ];
   var HIDE_KEY = 'admin_hidden_cols';
   var btn   = document.getElementById('adminColVisBtn');

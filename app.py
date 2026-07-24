@@ -1757,16 +1757,16 @@ def export():
     border         = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     headers = [
-        'Д/д', 'Посын мерчантын нэр', 'Посын сериал', 'Мерчантын дугаар',
-        'Терминалын дугаар', 'Пос гаргасан огноо', 'Утас', 'Мерчантын хэлбэр',
-        'Мерчант гаргасан ажилтан', 'Хэлтэс',
-        'Гэрээ ирсэн байх ёстой огноо', 'Гэрээ хүлээн авсан огноо',
-        'Хугацаа хэтэрсэн хоног', 'Хугацааны ангилал',
-        'Эхний хяналтаарх үр дүн', 'Тайлбар',
-        'Буцаасан огноо', 'Сүүлийн хяналтаар хүлээн авсан огноо'
+        'Д/д', 'Мерчантын нэр', 'Посын сериал', 'Мерч. дугаар', 'Терминал',
+        'Төлөв', 'Пос огноо', 'Утас', 'Хэлбэр', 'Ажилтан', 'Хэлтэс',
+        'Ирэх ёстой огноо', 'Хүлээн авсан огноо', 'Хэтэрсэн хоног', 'Ангилал',
+        'Эхний хяналтын үр дүн', 'Тайлбар', 'Буцаасан огноо', 'Сүүлийн хяналт',
+        'Зассан', 'Scanned', 'Засварлагдсан эсэх', 'Засварлагдсан огноо',
+        'Оруулсан ажилтан', 'Оруулсан огноо', 'Идэвхжил'
     ]
-    col_widths = [6, 28, 18, 18, 18, 18, 16, 20, 24, 18,
-                  22, 22, 20, 20, 30, 30, 18, 30]
+    col_widths = [6, 28, 18, 16, 16, 12, 14, 14, 14, 16, 14,
+                  18, 18, 14, 16, 26, 30, 22, 18,
+                  14, 10, 18, 18, 18, 18, 12]
 
     ws.row_dimensions[1].height = 36
     for i, (h, w) in enumerate(zip(headers, col_widths), start=1):
@@ -1779,14 +1779,26 @@ def export():
 
     for r_idx, row in enumerate(contracts, start=2):
         ws.row_dimensions[r_idx].height = 20
+        rdates = [row.get('return_date') or '', row.get('return_date_2') or '',
+                  row.get('return_date_3') or '', row.get('return_date_4') or '',
+                  row.get('return_date_5') or '']
+        rdates_str = ', '.join(d for d in rdates if d)
         values = [
             row['dd'], row['merchant_name'], row['pos_serial'],
-            row['merchant_number'], row['terminal_number'], row['pos_issue_date'],
-            row['phone'], row['merchant_type'], row['issued_by'],
-            row['department'], row['expected_date'], row['received_date'],
+            row['merchant_number'], row['terminal_number'],
+            row['status'], row['pos_issue_date'], row['phone'],
+            row['merchant_type'], row['issued_by'], row['department'],
+            row['expected_date'], row['received_date'],
             row['overdue_days'], row['time_category'],
             row['first_inspection'], row['description'],
-            row['return_date'], row['last_inspection_date']
+            rdates_str, row['last_inspection_date'],
+            (row.get('modified_by') or '').split('@')[0] or '',
+            '✓' if row.get('scanned') == '1' else '',
+            row.get('is_repaired') or '',
+            row.get('repaired_date') or '',
+            (row.get('uploaded_by') or '').split('@')[0] or '',
+            row.get('uploaded_date') or '',
+            'Идэвхгүй' if row.get('is_inactive') == '1' else 'Идэвхитэй',
         ]
         is_overdue = row['time_category'] == 'Хугацаа хэтэрсэн'
         row_fill   = overdue_fill if is_overdue else on_time_fill
@@ -1794,8 +1806,8 @@ def export():
         for c_idx, val in enumerate(values, start=1):
             cell = ws.cell(row=r_idx, column=c_idx, value=val)
             cell.border    = border
-            cell.alignment = wrap_align if c_idx in (2, 15, 16) else center_align
-            if c_idx == 14:
+            cell.alignment = wrap_align if c_idx in (2, 16, 17) else center_align
+            if c_idx == 15:
                 cell.fill = row_fill
 
     ws.freeze_panes = 'A2'

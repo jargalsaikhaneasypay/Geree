@@ -17,14 +17,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'contract-registry-secret-2026')
 
-# -----------------------------------------------------------
-# Users
-# -----------------------------------------------------------
-USERS = {
-    'bolor-erdene@easypay.mn': generate_password_hash('Bolor2026!', method='pbkdf2:sha256'),
-    'uyanga@easypay.mn':       generate_password_hash('Uyanga2026!', method='pbkdf2:sha256'),
-    'myagmarsuren_lkh@easypay.mn': generate_password_hash('Myagmar2026!', method='pbkdf2:sha256'),
-}
 
 def login_required(f):
     @wraps(f)
@@ -271,6 +263,27 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ch_contract ON contract_history(contract_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ch_time ON contract_history(changed_at DESC)")
     conn.commit()
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS app_users (
+            id            SERIAL PRIMARY KEY,
+            email         TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL
+        )
+    ''')
+    cur.execute('SELECT COUNT(*) FROM app_users')
+    if cur.fetchone()[0] == 0:
+        seed = [
+            ('bolor-erdene@easypay.mn', 'Bolor2026!'),
+            ('uyanga@easypay.mn',        'Uyanga2026!'),
+            ('myagmarsuren_lkh@easypay.mn', 'Myagmar2026!'),
+        ]
+        for em, pw in seed:
+            cur.execute(
+                'INSERT INTO app_users (email, password_hash) VALUES (%s, %s) ON CONFLICT DO NOTHING',
+                (em, generate_password_hash(pw, method='pbkdf2:sha256'))
+            )
+    conn.commit()
     cur.close()
     conn.close()
 
@@ -358,7 +371,13 @@ def login():
     if request.method == 'POST':
         email    = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
-        if email in USERS and check_password_hash(USERS[email], password):
+        conn = get_db()
+        cur  = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute('SELECT password_hash FROM app_users WHERE email = %s', (email,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        if user and check_password_hash(user['password_hash'], password):
             session['user'] = email
             next_url = request.args.get('next') or url_for('dashboard')
             return redirect('/' + next_url.lstrip('/'))
@@ -1204,6 +1223,96 @@ def managers_delete(mid):
     conn.close()
     flash('Устгагдлаа.', 'success')
     return redirect(url_for('managers_list'))
+
+
+# -----------------------------------------------------------
+# Routes – app user management (login accounts)
+# -----------------------------------------------------------
+@app.route('/users')
+@login_required
+def users_list():
+    conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT id, email FROM app_users ORDER BY email')
+    users = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template('users.html', users=users)
+
+
+@app.route('/users/add', methods=['POST'])
+@login_required
+def users_add():
+    email    = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '').strip()
+    if not email or not password:
+        flash('И-мэйл болон нууц үг шаардлагатай.', 'error')
+        return redirect(url_for('users_list'))
+    if len(password) < 6:
+        flash('Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.', 'error')
+        return redirect(url_for('users_list'))
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute(
+            'INSERT INTO app_users (email, password_hash) VALUES (%s, %s)',
+            (email, generate_password_hash(password, method='pbkdf2:sha256'))
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        flash(f'"{email}" нэмэгдлээ.', 'success')
+    except Exception as e:
+        flash(f'Алдаа: {e}', 'error')
+    return redirect(url_for('users_list'))
+
+
+@app.route('/users/change-password/<int:uid>', methods=['POST'])
+@login_required
+def users_change_password(uid):
+    password = request.form.get('password', '').strip()
+    if len(password) < 6:
+        flash('Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.', 'error')
+        return redirect(url_for('users_list'))
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(
+        'UPDATE app_users SET password_hash = %s WHERE id = %s',
+        (generate_password_hash(password, method='pbkdf2:sha256'), uid)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    flash('Нууц үг шинэчлэгдлээ.', 'success')
+    return redirect(url_for('users_list'))
+
+
+@app.route('/users/delete/<int:uid>', methods=['POST'])
+@login_required
+def users_delete(uid):
+    conn = get_db()
+    cur  = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute('SELECT COUNT(*) AS cnt FROM app_users')
+    if cur.fetchone()['cnt'] <= 1:
+        cur.close()
+        conn.close()
+        flash('Хамгийн багадаа нэг хэрэглэгч байх ёстой.', 'error')
+        return redirect(url_for('users_list'))
+    cur.execute('SELECT email FROM app_users WHERE id = %s', (uid,))
+    row = cur.fetchone()
+    if row and row['email'] == session.get('user'):
+        cur.close()
+        conn.close()
+        flash('Өөрийгөө устгах боломжгүй.', 'error')
+        return redirect(url_for('users_list'))
+    cur2 = conn.cursor()
+    cur2.execute('DELETE FROM app_users WHERE id = %s', (uid,))
+    conn.commit()
+    cur.close()
+    cur2.close()
+    conn.close()
+    flash('Хэрэглэгч устгагдлаа.', 'success')
+    return redirect(url_for('users_list'))
 
 
 @app.route('/managers/sync-all-depts', methods=['POST'])

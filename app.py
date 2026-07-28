@@ -105,8 +105,8 @@ def _get_pool():
             _pool = _pg_pool.SimpleConnectionPool(
                 1, 3, url,
                 sslmode='require', connect_timeout=10,
-                keepalives=1, keepalives_idle=30,
-                keepalives_interval=10, keepalives_count=5,
+                keepalives=1, keepalives_idle=10,
+                keepalives_interval=5, keepalives_count=3,
             )
     return _pool
 
@@ -131,23 +131,32 @@ def get_db():
         pool = _get_pool()
         raw = None
         if pool:
-            for _ in range(2):   # retry once if we get a dead connection
-                raw = pool.getconn()
-                if raw.closed == 0:
-                    try:
-                        raw.poll()
-                        if raw.status != psycopg2.extensions.STATUS_READY:
-                            raw.rollback()
-                        break
-                    except Exception:
+            for _ in range(3):
+                try:
+                    raw = pool.getconn()
+                    if raw.closed != 0:
                         pool.putconn(raw, close=True)
                         raw = None
-                else:
-                    pool.putconn(raw, close=True)
+                        continue
+                    # Verify connection is truly alive with a real query
+                    cur = raw.cursor()
+                    cur.execute('SELECT 1')
+                    cur.close()
+                    if raw.status != psycopg2.extensions.STATUS_READY:
+                        raw.rollback()
+                    break
+                except Exception:
+                    if raw:
+                        try:
+                            pool.putconn(raw, close=True)
+                        except Exception:
+                            pass
                     raw = None
-        if raw is None:          # pool unavailable — fall back to direct
+        if raw is None:
             raw = psycopg2.connect(_db_url(), sslmode='require',
-                                   connect_timeout=10)
+                                   connect_timeout=10,
+                                   keepalives=1, keepalives_idle=10,
+                                   keepalives_interval=5, keepalives_count=3)
         g.db = raw
         g.db_wrapper = _DBConn(raw)
     return g.db_wrapper

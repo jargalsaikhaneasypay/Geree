@@ -662,6 +662,55 @@ document.getElementById('dbForm').addEventListener('submit', function() {
 
 </div>
 
+<!-- Pending contracts table -->
+{% if pending_contracts %}
+<div class="card table-card" style="margin-top:18px" id="dbPendingCard">
+  <div style="padding:16px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <h3 style="font-size:13.5px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#B7791F;flex-shrink:0"></span>
+      Хүлээгдэж байгаа гэрээ
+    </h3>
+    <span style="font-size:12px;color:var(--text-muted)">Нийт <strong class="db-pending-count">{{ pending_contracts|length }}</strong> бүртгэл</span>
+  </div>
+  <div class="table-scroll">
+    <table class="data-table" id="dbPendingTable" style="font-size:13px">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Мерчантын нэр</th>
+          <th>Ажилтан</th>
+          <th>Хэлтэс</th>
+          <th>Терминал №</th>
+          <th>Посын сериал</th>
+          <th>Пос огноо</th>
+          <th>Ирэх ёстой огноо</th>
+          <th>Хэтэрсэн хоног</th>
+          <th>Төлөв</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in pending_contracts %}
+        <tr class="{% if c.overdue_days and c.overdue_days > 0 %}row-overdue{% else %}row-ontime{% endif %}">
+          <td class="text-center fw-600">{{ loop.index }}</td>
+          <td class="fw-500">{{ c.merchant_name or '—' }}</td>
+          <td>{{ c.issued_by or '—' }}</td>
+          <td>{% if c.department %}<span class="badge badge-dept">{{ c.department }}</span>{% else %}—{% endif %}</td>
+          <td class="mono">{{ c.terminal_number or '—' }}</td>
+          <td class="mono">{{ c.pos_serial or '—' }}</td>
+          <td class="text-center">{{ c.pos_issue_date or '—' }}</td>
+          <td class="text-center">{{ c.expected_date or '—' }}</td>
+          <td class="text-center fw-600 {% if c.overdue_days and c.overdue_days > 0 %}text-danger{% endif %}">
+            {% if c.overdue_days is not none %}{{ c.overdue_days }}{% else %}—{% endif %}
+          </td>
+          <td>{% if c.status %}<span class="badge badge-status-{{ c.status | replace('/', '-') | replace(' ', '-') }}">{{ c.status }}</span>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- Contract list table -->
 {% if contracts %}
 <div class="card table-card" style="margin-top:18px" id="dbContractCard">

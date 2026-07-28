@@ -1843,6 +1843,7 @@ def dashboard():
              {'2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу'}],
             key=lambda r: (r['dd'] or 0)
         ),
+        pending_contracts=sorted(not_received_rows, key=lambda r: (r.get('overdue_days') or 0), reverse=True),
         mgr_dept_map=mgr_dept_map,
     )
 

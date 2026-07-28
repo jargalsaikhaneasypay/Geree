@@ -1733,8 +1733,8 @@ def dashboard():
     returned      = sum(1 for r in rows if r['first_inspection'] in ('2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу'))
     returned_repaired     = sum(1 for r in rows if r['first_inspection'] in ('2.Бүрдэл дутуу', '4.Бүртгэл буруу/дутуу', '5.Салбар дээр архивлагдсан/дутуу') and r.get('is_repaired') == 'Тийм')
     returned_not_repaired = returned - returned_repaired
-    not_received  = sum(1 for r in rows if not r['first_inspection'])
-    not_received_rows = [r for r in rows if not r['received_date']]
+    not_received_rows = [r for r in all_rows if not r['received_date']]
+    not_received  = len(not_received_rows)
 
     nr_overdue_days = []
     for r in not_received_rows:

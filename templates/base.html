@@ -83,12 +83,14 @@
           </svg>
           Өөрчлөлтийн түүх
         </a>
+        {% if session.user == 'bolor-erdene@easypay.mn' %}
         <a href="{{ url_for('users_list') }}" class="nav-item nav-item-sub {% if request.endpoint in ['users_list','users_add','users_change_password','users_delete'] %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
           Нэвтрэх эрх
         </a>
+        {% endif %}
       </div>
     </div>
     {% else %}

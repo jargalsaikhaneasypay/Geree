@@ -17,6 +17,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'contract-registry-secret-2026')
 
+SUPER_ADMIN = 'bolor-erdene@easypay.mn'
+
 
 def login_required(f):
     @wraps(f)
@@ -1240,6 +1242,9 @@ def managers_delete(mid):
 @app.route('/users')
 @login_required
 def users_list():
+    if session.get('user') != SUPER_ADMIN:
+        flash('Энэ хуудсанд нэвтрэх эрх байхгүй байна.', 'error')
+        return redirect(url_for('dashboard'))
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute('SELECT id, email FROM app_users ORDER BY email')
@@ -1252,6 +1257,9 @@ def users_list():
 @app.route('/users/add', methods=['POST'])
 @login_required
 def users_add():
+    if session.get('user') != SUPER_ADMIN:
+        flash('Энэ үйлдлийг гүйцэтгэх эрх байхгүй байна.', 'error')
+        return redirect(url_for('dashboard'))
     email    = request.form.get('email', '').strip().lower()
     password = request.form.get('password', '').strip()
     if not email or not password:
@@ -1279,6 +1287,9 @@ def users_add():
 @app.route('/users/change-password/<int:uid>', methods=['POST'])
 @login_required
 def users_change_password(uid):
+    if session.get('user') != SUPER_ADMIN:
+        flash('Энэ үйлдлийг гүйцэтгэх эрх байхгүй байна.', 'error')
+        return redirect(url_for('dashboard'))
     password = request.form.get('password', '').strip()
     if len(password) < 6:
         flash('Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.', 'error')
@@ -1299,6 +1310,9 @@ def users_change_password(uid):
 @app.route('/users/delete/<int:uid>', methods=['POST'])
 @login_required
 def users_delete(uid):
+    if session.get('user') != SUPER_ADMIN:
+        flash('Энэ үйлдлийг гүйцэтгэх эрх байхгүй байна.', 'error')
+        return redirect(url_for('dashboard'))
     conn = get_db()
     cur  = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute('SELECT COUNT(*) AS cnt FROM app_users')

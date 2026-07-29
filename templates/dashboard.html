@@ -285,7 +285,7 @@ function setPeriod(p) {
   };
 
   window.msItemChange = function(wrapId, defaultLabel) { updateLabel(wrapId, defaultLabel); };
-
+  
   window.msClear = function(wrapId, defaultLabel) {
     getCbs(wrapId).forEach(function(cb) { cb.checked = false; });
     var allCb = document.getElementById(wrapId + '_all');
@@ -645,15 +645,6 @@ document.getElementById('dbForm').addEventListener('submit', function() {
           <span class="bar-count">{{ cnt }}</span>
         </div>
         {% endfor %}
-        {% if inactive_count %}
-        <div class="bar-item" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-          <span class="bar-label" style="width:210px;font-size:12px;color:var(--warning);font-weight:600">Буцаагдсан гэрээ</span>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:{{ ([inactive_count, max_ic]|min / max_ic * 100)|int }}%;background:var(--warning)"></div>
-          </div>
-          <span class="bar-count" style="color:var(--warning);font-weight:700">{{ inactive_count }}</span>
-        </div>
-        {% endif %}
       </div>
     {% else %}
     <div class="empty-chart">Мэдээлэл байхгүй</div>

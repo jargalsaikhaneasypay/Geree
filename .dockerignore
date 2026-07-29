@@ -1,0 +1,12 @@
+**/venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.db
+**/.env
+fly.toml
+docker-compose.yml
+.dockerignore
+.git
+.gitignore
+uploads/

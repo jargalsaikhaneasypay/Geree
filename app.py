@@ -17,7 +17,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'contract-registry-secret-2026')
 
-SUPER_ADMIN = 'bolor-erdene@easypay.mn'
+SUPER_ADMIN = os.environ.get('SUPER_ADMIN', 'bolor-erdene@easypay.mn')
+
+@app.context_processor
+def inject_super_admin():
+    return dict(super_admin=SUPER_ADMIN)
 
 
 def login_required(f):

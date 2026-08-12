@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}Oracle DB Test{% endblock %}
+{% block page_title %}<h1 class="page-title">Oracle DB Test</h1>{% endblock %}
+
+{% block content %}
+<div style="max-width:960px;margin:0 auto">
+
+  <!-- Connection status -->
+  <div class="card form-card" style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      {% if status == 'ok' %}
+        <span style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#d1fae5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <div>
+          <div style="font-weight:600;color:#059669">Холболт амжилттай</div>
+          <div style="font-size:12px;color:var(--text-muted)">{{ message }}</div>
+        </div>
+      {% elif status == 'error' %}
+        <span style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#fee2e2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" style="width:18px;height:18px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </span>
+        <div>
+          <div style="font-weight:600;color:#dc2626">Холболт амжилтгүй</div>
+          <div style="font-size:12px;color:var(--text-muted);word-break:break-all">{{ message }}</div>
+        </div>
+      {% else %}
+        <span style="font-size:13px;color:var(--text-muted)">Тохиргоо хийгдээгүй байна</span>
+      {% endif %}
+    </div>
+
+    <!-- Config hint -->
+    <div style="background:var(--bg-muted,#f8f9fa);border-radius:8px;padding:14px;font-size:12px;font-family:monospace;color:var(--text-muted)">
+      <div style="margin-bottom:4px;font-family:'Inter',sans-serif;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em">орчны хувьсагч (.env)</div>
+      ORACLE_USER=таны_хэрэглэгч<br>
+      ORACLE_PASSWORD=нууц_үг<br>
+      ORACLE_DSN=192.168.x.x:1521/ORCL
+    </div>
+  </div>
+
+  {% if status == 'ok' %}
+
+  <!-- Tables list -->
+  {% if tables %}
+  <div class="card table-card" style="margin-bottom:20px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:12px">
+      Хүснэгтүүд ({{ tables|length }})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      {% for t in tables %}
+      <button type="button"
+              onclick="document.getElementById('queryInput').value='SELECT * FROM {{ t }} FETCH FIRST 50 ROWS ONLY';document.getElementById('queryForm').submit()"
+              style="padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg);font-size:12px;cursor:pointer;font-family:'Inter',sans-serif">
+        {{ t }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Custom query -->
+  <div class="card form-card" style="margin-bottom:20px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:12px">SQL Query</div>
+    <form method="POST" id="queryForm">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <textarea id="queryInput" name="query" rows="3"
+                  style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:monospace;font-size:13px;resize:vertical;background:var(--bg);color:var(--text)"
+                  placeholder="SELECT * FROM MY_TABLE FETCH FIRST 50 ROWS ONLY">{{ query }}</textarea>
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap">Ажиллуулах</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Query results -->
+  {% if columns %}
+  <div class="card table-card">
+    <div style="font-weight:600;font-size:14px;margin-bottom:12px">
+      Үр дүн — {{ rows|length }} мөр
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            {% for col in columns %}
+            <th>{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            {% for cell in row %}
+            <td>{{ cell if cell is not none else '—' }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% elif query %}
+  <div class="card" style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">
+    Үр дүн байхгүй байна
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+</div>
+{% endblock %}

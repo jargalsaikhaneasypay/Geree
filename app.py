@@ -2008,6 +2008,71 @@ def handle_any_error(e):
         body = _html.escape(str(e))
     return f'<pre style="padding:20px;font-size:13px">{body}</pre>', 500
 
+# ── Oracle DB test page ─────────────────────────────────────────
+@app.route('/test-oracle', methods=['GET', 'POST'])
+@login_required
+def test_oracle():
+    import oracledb
+
+    ORACLE_USER = os.environ.get('ORACLE_USER', '')
+    ORACLE_PASS = os.environ.get('ORACLE_PASSWORD', '')
+    ORACLE_DSN  = os.environ.get('ORACLE_DSN', '')   # e.g. 192.168.1.10:1521/ORCL
+
+    status   = None   # 'ok' | 'error'
+    message  = ''
+    columns  = []
+    rows     = []
+    tables   = []
+
+    # Custom query from form
+    query = request.form.get('query', '').strip()
+
+    if ORACLE_USER and ORACLE_PASS and ORACLE_DSN:
+        try:
+            oracledb.init_oracle_client()   # thick mode – skip if not installed
+        except Exception:
+            pass                             # fall back to thin mode automatically
+
+        try:
+            conn = oracledb.connect(user=ORACLE_USER, password=ORACLE_PASS, dsn=ORACLE_DSN)
+            status = 'ok'
+            message = f'Амжилттай холбогдлоо → {ORACLE_DSN}'
+
+            cur = conn.cursor()
+
+            # List accessible tables
+            cur.execute(
+                "SELECT table_name FROM all_tables "
+                "WHERE owner = :own ORDER BY table_name",
+                own=ORACLE_USER.upper()
+            )
+            tables = [r[0] for r in cur.fetchall()]
+
+            # Run custom query if provided
+            if query:
+                cur.execute(query)
+                columns = [d[0] for d in cur.description]
+                rows    = [list(r) for r in cur.fetchmany(200)]
+
+            cur.close()
+            conn.close()
+
+        except Exception as e:
+            status  = 'error'
+            message = str(e)
+    else:
+        status  = 'error'
+        message = 'ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN орчны хувьсагч тохируулагдаагүй байна.'
+
+    return render_template(
+        'test_oracle.html',
+        status=status, message=message,
+        tables=tables, columns=columns, rows=rows,
+        query=query,
+        dsn=ORACLE_DSN,
+    )
+
+
 if __name__ == '__main__':
     init_db()
     import sys, io

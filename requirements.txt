@@ -3,3 +3,4 @@ openpyxl==3.1.5
 gunicorn==23.0.0
 werkzeug==3.1.8
 psycopg2-binary==2.9.12
+oracledb==2.4.1

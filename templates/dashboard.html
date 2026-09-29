@@ -669,6 +669,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         <tr>
           <th style="width:40px">#</th>
           <th>Мерчантын нэр</th>
+          <th>Мерчант ID</th>
           <th>Ажилтан</th>
           <th>Хэлтэс</th>
           <th>Терминал №</th>
@@ -684,6 +685,7 @@ document.getElementById('dbForm').addEventListener('submit', function() {
         <tr class="{% if c.overdue_days and c.overdue_days > 0 %}row-overdue{% else %}row-ontime{% endif %}">
           <td class="text-center fw-600">{{ loop.index }}</td>
           <td class="fw-500">{{ c.merchant_name or '—' }}</td>
+          <td class="mono">{{ c.merchant_number or '—' }}</td>
           <td>{{ c.issued_by or '—' }}</td>
           <td>{% if c.department %}<span class="badge badge-dept">{{ c.department }}</span>{% else %}—{% endif %}</td>
           <td class="mono">{{ c.terminal_number or '—' }}</td>

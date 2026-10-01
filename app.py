@@ -589,7 +589,6 @@ def add():
         cur.execute('SELECT MAX(dd) AS m FROM contracts')
         last = cur.fetchone()
         dd   = (last['m'] or 0) + 1
-
         merchant_name        = request.form.get('merchant_name', '').strip()
         pos_serial           = request.form.get('pos_serial', '').strip()
         merchant_number      = request.form.get('merchant_number', '').strip()
@@ -1091,7 +1090,7 @@ def import_confirm():
                 department           = gf(row, 'department')
 
                 # Auto-fill department from manager history based on pos_issue_date
-                if issued_by and not department:
+                if issued_by and not department:                                    
                     department = get_dept_for_date(issued_by, pos_issue_date)
 
                 expected_date        = gf(row, 'expected_date')
@@ -1578,6 +1577,10 @@ def admin():
 # -----------------------------------------------------------
 # Dashboard
 # -----------------------------------------------------------
+# pos_issue_date is free text: '2026/01/05' and '2026-01-05 00:00:00' both
+# occur, so compare on the first 10 chars with '/' turned into '-'.
+POS_DATE_SQL = "REPLACE(SUBSTRING(pos_issue_date, 1, 10), '/', '-')"
+
 @app.route('/dashboard')
 def dashboard():
     import calendar
@@ -1673,18 +1676,18 @@ def dashboard():
         tc_queries = [
             """UPDATE contracts
                SET time_category = 'Хугацаа хэтэрсэн',
-                   overdue_days  = (CURRENT_DATE - expected_date::date)
+                   overdue_days  = (%s::date - expected_date::date)
                WHERE expected_date IS NOT NULL AND expected_date != ''
                  AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}'
                  AND (received_date IS NULL OR received_date = '')
-                 AND expected_date::date < CURRENT_DATE
+                 AND expected_date::date < %s::date
                  AND (is_inactive IS NULL OR is_inactive != '1')""",
             """UPDATE contracts
                SET time_category = 'Хоосон', overdue_days = 0
                WHERE expected_date IS NOT NULL AND expected_date != ''
                  AND expected_date ~ '^\\d{4}-\\d{2}-\\d{2}'
                  AND (received_date IS NULL OR received_date = '')
-                 AND expected_date::date >= CURRENT_DATE
+                 AND expected_date::date >= %s::date
                  AND (is_inactive IS NULL OR is_inactive != '1')""",
             """UPDATE contracts
                SET overdue_days  = (received_date::date - expected_date::date),
@@ -1701,7 +1704,8 @@ def dashboard():
         for sql in tc_queries:
             try:
                 cur.execute("SAVEPOINT tc")
-                cur.execute(sql)
+                n = sql.count('%s')
+                cur.execute(sql, [today_str] * n if n else None)
                 cur.execute("RELEASE SAVEPOINT tc")
             except Exception:
                 cur.execute("ROLLBACK TO SAVEPOINT tc")
@@ -1713,8 +1717,12 @@ def dashboard():
         year_str  = d_from[:4]
         base_cond = "WHERE (pos_issue_date IS NULL OR pos_issue_date = '' OR SUBSTRING(pos_issue_date, 1, 4) = %s)"
         base_params = [year_str]
+    elif period == 'day':
+        # Undated records don't belong to a specific day
+        base_cond   = f"WHERE {POS_DATE_SQL} BETWEEN %s AND %s"
+        base_params = [d_from, d_to]
     else:
-        base_cond   = "WHERE (pos_issue_date BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
+        base_cond   = f"WHERE ({POS_DATE_SQL} BETWEEN %s AND %s OR pos_issue_date IS NULL OR pos_issue_date = '')"
         base_params = [d_from, d_to]
     if depts:
         base_cond += " AND department IN ({})".format(','.join(['%s']*len(depts)))
@@ -1804,15 +1812,15 @@ def dashboard():
                          calendar.monthrange(month_ranges[-1][0], month_ranges[-1][1])[1]).isoformat()
 
     # Single query replaces 18 separate COUNT queries
-    cur.execute("""
+    cur.execute(f"""
         SELECT
-            SUBSTRING(pos_issue_date, 1, 7) AS ym,
+            SUBSTRING({POS_DATE_SQL}, 1, 7) AS ym,
             COUNT(*) AS total,
             SUM(CASE WHEN time_category = 'Хоосон'      THEN 1 ELSE 0 END) AS hoosoon,
             SUM(CASE WHEN time_category = 'Хугацаандаа' THEN 1 ELSE 0 END) AS on_time
         FROM contracts
         WHERE (is_inactive IS NULL OR is_inactive != '1')
-          AND pos_issue_date BETWEEN %s AND %s
+          AND {POS_DATE_SQL} BETWEEN %s AND %s
         GROUP BY 1
     """, [trend_from, trend_to])
     trend_data = {r['ym']: r for r in cur.fetchall()}

@@ -22,6 +22,7 @@ services:
     env_file:
       - .env
     environment:
+      - TZ=<+08>-8
       - DATABASE_URL=postgresql://geree_user:${DB_PASSWORD:-geree_pass}@db:5432/geree_db
     volumes:
       - uploads:/app/uploads
